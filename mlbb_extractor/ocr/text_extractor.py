@@ -2,7 +2,7 @@
 
 import pytesseract
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import re
 
 
@@ -44,7 +44,7 @@ class TextExtractor:
 
     def extract_text_with_boxes(
         self, image: np.ndarray
-    ) -> List[Dict[str, any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Extract text along with bounding box information.
 

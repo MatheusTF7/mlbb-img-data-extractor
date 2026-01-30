@@ -91,11 +91,17 @@ class ImagePreprocessor:
 
         Args:
             image: Input image
-            scale_factor: Scale factor for resizing
+            scale_factor: Scale factor for resizing (must be positive)
 
         Returns:
             Resized image
+            
+        Raises:
+            ValueError: If scale_factor is not positive
         """
+        if scale_factor <= 0:
+            raise ValueError("scale_factor must be positive")
+        
         width = int(image.shape[1] * scale_factor)
         height = int(image.shape[0] * scale_factor)
         return cv2.resize(image, (width, height), interpolation=cv2.INTER_CUBIC)

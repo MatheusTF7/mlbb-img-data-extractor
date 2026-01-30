@@ -26,7 +26,7 @@ class DataParser:
             Dictionary with kills, deaths, and assists
         """
         # Pattern: "10/2/15" or "10-2-15"
-        pattern = r"(\d+)[/\-](\d+)[/\-](\d+)"
+        pattern = r"(\d+)[/-](\d+)[/-](\d+)"
         match = re.search(pattern, text)
         
         if match:
@@ -49,13 +49,13 @@ class DataParser:
             Gold amount as float
         """
         # Pattern: "12.5k" or "12500" or "12.5K gold"
-        pattern = r"(\d+\.?\d*)\s*[kK]?"
+        pattern = r"(\d+\.?\d*)\s*([kK])?"
         match = re.search(pattern, text)
         
         if match:
             value = float(match.group(1))
             # If 'k' or 'K' is present, multiply by 1000
-            if re.search(r"\d+\.?\d*\s*[kK]", text):
+            if match.group(2):
                 value *= 1000
             return value
         
@@ -72,12 +72,12 @@ class DataParser:
             Damage amount as float
         """
         # Similar to gold parsing
-        pattern = r"(\d+\.?\d*)\s*[kK]?"
+        pattern = r"(\d+\.?\d*)\s*([kK])?"
         match = re.search(pattern, text)
         
         if match:
             value = float(match.group(1))
-            if re.search(r"\d+\.?\d*\s*[kK]", text):
+            if match.group(2):
                 value *= 1000
             return value
         
@@ -179,11 +179,6 @@ class DataParser:
             "hero_name": self.parse_hero_name(
                 extracted_data.get("hero_name", "")
             ),
-            "kills": 0,
-            "deaths": 0,
-            "assists": 0,
-            "gold": 0.0,
-            "damage": 0.0,
             "game_result": self.parse_game_result(
                 extracted_data.get("game_result", "")
             ),
@@ -196,13 +191,20 @@ class DataParser:
         if "kda" in extracted_data:
             kda = self.parse_kda(extracted_data["kda"])
             structured.update(kda)
+        else:
+            # Set defaults if no K/D/A data
+            structured.update({"kills": 0, "deaths": 0, "assists": 0})
         
         # Parse individual stats
         if "gold" in extracted_data:
             structured["gold"] = self.parse_gold(extracted_data["gold"])
+        else:
+            structured["gold"] = 0.0
         
         if "damage" in extracted_data:
             structured["damage"] = self.parse_damage(extracted_data["damage"])
+        else:
+            structured["damage"] = 0.0
         
         return structured
 
@@ -223,16 +225,16 @@ class DataParser:
         
         df = pd.DataFrame(player_data_list)
         
-        # Ensure proper data types
+        # Ensure proper data types with error handling
         if "kills" in df.columns:
-            df["kills"] = df["kills"].astype(int)
+            df["kills"] = pd.to_numeric(df["kills"], errors="coerce").fillna(0).astype(int)
         if "deaths" in df.columns:
-            df["deaths"] = df["deaths"].astype(int)
+            df["deaths"] = pd.to_numeric(df["deaths"], errors="coerce").fillna(0).astype(int)
         if "assists" in df.columns:
-            df["assists"] = df["assists"].astype(int)
+            df["assists"] = pd.to_numeric(df["assists"], errors="coerce").fillna(0).astype(int)
         if "gold" in df.columns:
-            df["gold"] = df["gold"].astype(float)
+            df["gold"] = pd.to_numeric(df["gold"], errors="coerce").fillna(0.0).astype(float)
         if "damage" in df.columns:
-            df["damage"] = df["damage"].astype(float)
+            df["damage"] = pd.to_numeric(df["damage"], errors="coerce").fillna(0.0).astype(float)
         
         return df

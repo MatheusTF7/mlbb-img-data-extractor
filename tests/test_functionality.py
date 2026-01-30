@@ -7,6 +7,8 @@ import numpy as np
 import cv2
 from pathlib import Path
 import sys
+import tempfile
+import os
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -44,9 +46,10 @@ def test_preprocessing():
     print("Testing Image Preprocessing")
     print("=" * 50)
     
-    # Create test image
+    # Create test image with cross-platform temp path
     test_img = create_test_image()
-    test_path = "/tmp/test_screenshot.png"
+    temp_dir = tempfile.gettempdir()
+    test_path = os.path.join(temp_dir, "test_screenshot.png")
     cv2.imwrite(test_path, test_img)
     print(f"✓ Created test image at {test_path}")
     
@@ -161,7 +164,8 @@ def test_export():
     print("=" * 50)
     
     parser = DataParser()
-    exporter = DataExporter(output_dir="/tmp/test_output")
+    temp_output = tempfile.mkdtemp()
+    exporter = DataExporter(output_dir=temp_output)
     
     # Create sample data
     data = {
@@ -200,7 +204,8 @@ def test_pipeline(test_path):
     print("Testing Complete Pipeline")
     print("=" * 50)
     
-    pipeline = Pipeline(output_dir="/tmp/test_output")
+    temp_output = tempfile.mkdtemp()
+    pipeline = Pipeline(output_dir=temp_output)
     
     # Process single image
     result = pipeline.run(
