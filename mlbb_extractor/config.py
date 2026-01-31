@@ -292,7 +292,7 @@ class ExtractorConfig:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    def create_sample_config(self, output_path: str = "config.json") -> str:
+    def create_sample_config(self, output_path: str = "resolutions/default.json") -> str:
         """
         Cria um arquivo de configuração de exemplo.
 

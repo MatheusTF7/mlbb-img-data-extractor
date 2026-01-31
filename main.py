@@ -52,7 +52,7 @@ Exemplos:
   python main.py -i screenshot.png -p MTF7 --tesseract-cmd "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
   # Usar arquivo de configuração
-  python main.py -i screenshot.png --all-players --config config.json
+  python main.py -i screenshot.png --all-players --config resolutions/default.json
 
   # Gerar arquivo de configuração de exemplo
   python main.py --generate-config
@@ -92,7 +92,7 @@ Exemplos:
     # Opções de configuração
     parser.add_argument(
         "--config",
-        help="Caminho para arquivo de configuração JSON",
+        help="Caminho para arquivo de configuração JSON (ex: resolutions/default.json)",
     )
     parser.add_argument(
         "--tesseract-cmd",
@@ -142,33 +142,71 @@ Exemplos:
 
 def generate_config() -> int:
     """Gera um arquivo de configuração de exemplo."""
+    from pathlib import Path
+    
+    # Criar pasta resolutions
+    resolutions_dir = Path("resolutions")
+    resolutions_dir.mkdir(exist_ok=True)
+    
     config = ExtractorConfig()
-    output_path = "config.json"
-    config.save_to_file(output_path)
+    output_path = resolutions_dir / "default.json"
+    config.save_to_file(str(output_path))
     
     print(f"Arquivo de configuração gerado: {output_path}")
     print("\nO arquivo contém:")
-    print("- Perfil padrão para resolução 2400x1080")
+    print("- Perfil padrão para resolução 2400x1080 (20:9 ultrawide)")
     print("- Configurações de Tesseract e diretório de saída")
-    print("\nEdite o arquivo para adicionar novos perfis de resolução")
-    print("ou ajustar as coordenadas das regiões.")
+    print("\nCrie novos arquivos em resolutions/ para diferentes resoluções:")
+    print("  resolutions/default.json    - Perfil padrão 2400x1080")
+    print("  resolutions/1920x1080.json  - Full HD 16:9")
+    print("  resolutions/custom.json     - Seu perfil personalizado")
+    print("\nUse com: --config resolutions/seu_arquivo.json")
     
     return 0
 
 
 def list_profiles(config_path: str = None) -> int:
     """Lista os perfis de resolução disponíveis."""
-    config = ExtractorConfig(config_path)
+    from pathlib import Path
     
     print("Perfis de Resolução Disponíveis:")
     print("=" * 50)
     
-    for name in config.list_profiles():
-        profile = config.profiles[name]
-        active = " (ativo)" if name == config.active_profile_name else ""
-        print(f"\n{name}{active}")
-        print(f"  Descrição: {profile.description}")
-        print(f"  Resolução de referência: {profile.reference_width}x{profile.reference_height}")
+    resolutions_dir = Path("resolutions")
+    
+    if not resolutions_dir.exists():
+        print("\nPasta 'resolutions/' não encontrada.")
+        print("Execute: python main.py --generate-config")
+        return 1
+    
+    # Listar todos os arquivos JSON na pasta resolutions/
+    config_files = list(resolutions_dir.glob("*.json"))
+    
+    if not config_files:
+        print("\nNenhum arquivo de configuração encontrado em 'resolutions/'")
+        print("Execute: python main.py --generate-config")
+        return 1
+    
+    for config_file in sorted(config_files):
+        try:
+            config = ExtractorConfig(str(config_file))
+            
+            print(f"\n📁 {config_file.name}")
+            print("-" * 50)
+            
+            for name in config.list_profiles():
+                profile = config.profiles[name]
+                active = " ✓" if name == config.active_profile_name else ""
+                print(f"  • {name}{active}")
+                print(f"    Descrição: {profile.description}")
+                print(f"    Resolução: {profile.reference_width}x{profile.reference_height}")
+                print(f"    Aspect Ratio: {profile.reference_width/profile.reference_height:.2f}:1")
+        except Exception as e:
+            print(f"\n❌ Erro ao carregar {config_file.name}: {e}")
+    
+    print("\n" + "=" * 50)
+    print(f"Total: {len(config_files)} arquivo(s) de configuração")
+    print("\nUso: python main.py -i screenshot.png --all-players --config resolutions/arquivo.json")
     
     return 0
 

@@ -34,8 +34,8 @@ ENV/
 
 # Output files
 output/
-*.csv
-*.json
+output/*.csv
+output/*.json
 results/
 
 # Test files

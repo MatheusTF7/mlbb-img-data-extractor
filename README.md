@@ -77,6 +77,8 @@ python main.py -i screenshot.png -p "MTF7" --tesseract-cmd "C:\Program Files\Tes
 python main.py --generate-config
 ```
 
+Isto criará `resolutions/default.json` com o perfil padrão.
+
 #### Listar perfis de resolução
 
 ```bash
@@ -115,7 +117,7 @@ for player in all_players:
 from mlbb_extractor import MLBBExtractor, ExtractorConfig
 
 # Carregar configuração de arquivo
-config = ExtractorConfig("config.json")
+config = ExtractorConfig("resolutions/default.json")
 
 # Criar extrator com configuração
 extractor = MLBBExtractor(config=config)
@@ -126,7 +128,15 @@ extractor.config.set_active_profile("default_2400x1080")
 
 ## Configuração
 
-O arquivo `config.json` permite definir múltiplos perfis de resolução:
+Os arquivos de configuração ficam na pasta `resolutions/` e permitem definir múltiplos perfis de resolução.
+
+Gere o arquivo padrão com:
+
+```bash
+python main.py --generate-config
+```
+
+Isto criará `resolutions/default.json`:
 
 ```json
 {
@@ -170,7 +180,8 @@ Todas as coordenadas são definidas em **porcentagem** (0-100) da imagem, o que 
 ```
 mlbb-img-data-extractor/
 ├── main.py                      # CLI principal
-├── config.json                  # Arquivo de configuração (gerado)
+├── resolutions/                 # Arquivos de configuração
+│   └── default.json           # Perfil padrão 2400x1080
 ├── requirements.txt             # Dependências Python
 ├── setup.py                     # Instalação do pacote
 ├── mlbb_extractor/
@@ -237,11 +248,16 @@ Se seus screenshots têm proporções diferentes do perfil padrão (2400x1080):
    python main.py --generate-config
    ```
 
-2. Edite `config.json` e adicione um novo perfil com as coordenadas ajustadas
-
-3. Use o perfil:
+2. Copie `resolutions/default.json` para um novo arquivo:
    ```bash
-   python main.py -i screenshot.png --all-players --profile "meu_perfil"
+   cp resolutions/default.json resolutions/1920x1080.json
+   ```
+
+3. Edite o novo arquivo e ajuste as coordenadas
+
+4. Use o perfil:
+   ```bash
+   python main.py -i screenshot.png --all-players --config resolutions/1920x1080.json
    ```
 
 ## Troubleshooting
