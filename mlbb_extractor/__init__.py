@@ -12,6 +12,8 @@ from .ocr.text_extractor import TextExtractor
 from .parser.data_parser import DataParser
 from .exporter.data_exporter import DataExporter
 from .pipeline import Pipeline
+from .extractor.mlbb_extractor import MLBBExtractor, GameData, PlayerStats, MatchInfo
+from .regions import Region, PlayerRowRegions, ALL_PLAYERS
 
 __all__ = [
     "ImagePreprocessor",
@@ -19,4 +21,12 @@ __all__ = [
     "DataParser",
     "DataExporter",
     "Pipeline",
+    "MLBBExtractor",
+    "GameData",
+    "PlayerStats",
+    "MatchInfo",
+    "Region",
+    "PlayerRowRegions",
+    "ALL_PLAYERS",
 ]
+

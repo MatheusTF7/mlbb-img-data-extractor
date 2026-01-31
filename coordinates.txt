@@ -1,0 +1,292 @@
+  * IMPORTANTE *
+  - Para manter a responsividade nas imagens, os valores estão em porcentagem. A imagem nativa utilizada para testes tem 2400x1080px.
+  
+  
+  - Área de detecção de resultado: VICTORY ou DEFEAT
+  {
+    "x": 40.02235885969815,
+    "y": 3.1055900621118013,
+    "w": 19.8993851313583,
+    "h": 10.683229813664596,
+    
+  }
+  
+  - Área de detecção de placar do meu time: números de 1 ou 2 digitos
+  {
+    "x": 32.4762437115707,
+    "y": 5.093167701863354,
+    "w": 4.974846282839574,
+    "h": 8.571428571428571,
+    
+  }
+  
+   - Área de detecção de placar do time adversário: números de 1 ou 2 digitos
+  {
+    "x": 62.60480715483511,
+    "y": 5.217391304347826,
+    "w": 4.807154835103411,
+    "h": 7.95031055900621,
+    
+  }
+  
+  - Duração da partida: pares de 2 números com mm:ss
+  {
+    "x": 77.24986025712688,
+    "y": 11.428571428571429,
+    "w": 4.583566238121861,
+    "h": 4.099378881987576,
+    
+  }
+  
+  - Área de resultados do meu time: dividida em 5 linhas de mesmo tamanho
+  {
+    "x": 13.527110117384014,
+    "y": 20.869565217391305,
+    "w": 36.50083845723868,
+    "h": 63.975155279503106,
+    
+  }
+  
+  -Sub áreas do resultado total. Todas as áreas tem a mesma altura e comprimento, alterando apenas a coordenada Y (posição da linha)
+  - Sub área do primeiro jogador do meu time: 1ª linha
+    {
+    "x": 13.527110117384014,
+    "y": 20.869565217391305,
+    "w": 36.50083845723868,
+    "h": 12.795031055900623,
+    
+  }
+  -- sub área nickname
+  {
+    "x": 21.07322526551146,
+    "y": 22.111801242236034,
+    "w": 10.564561207378427,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área status: números divididos por espaços na seguinte sequencia -> kills deaths assists gold
+  {
+    "x": 31.134712129681386,
+    "y": 21.987577639751557,
+    "w": 12.129681386249304,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área medalha de desempenho: pode ser na cor gold, silver and coper
+  {
+    "x": 43.76746785913918,
+    "y": 22.608695652173918,
+    "w": 3.856903297931809,
+    "h": 7.453416149068319,
+    
+  }
+  -- nota de desempenho: um número flutuante de 1 ou 2 digitos. ex.: 15.1; 9.8; 10.0
+	{
+    "x": 43.76746785913918,
+    "y": 29.316770186335408,
+    "w": 3.856903297931809,
+    "h": 4.223602484472046,
+    
+  }
+
+
+-------------------------------------------------------
+  - Sub área do segundo jogador do meu time: 2ª linha
+  {
+    "x": 13.583007266629403,
+    "y": 33.66459627329193,
+    "w": 36.50083845723868,
+    "h": 12.795031055900623,
+    
+  }
+  -- sub área nickname
+  {
+    "x": 20.961430967020682,
+    "y": 34.782608695652186,
+    "w": 10.564561207378427,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área status: números divididos por espaços na seguinte sequencia -> kills deaths assists gold
+  {
+    "x": 31.190609278926775,
+    "y": 34.53416149068323,
+    "w": 12.129681386249304,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área medalha de desempenho: pode ser na cor gold, silver and coper
+  {
+    "x": 43.82336500838457,
+    "y": 35.1552795031056,
+    "w": 3.856903297931809,
+    "h": 7.577639751552791,
+    
+  }
+  -- nota de desempenho: um número flutuante de 1 ou 2 digitos. ex.: 15.1; 9.8; 10.0
+  {
+    "x": 43.71157070989379,
+    "y": 42.236024844720504,
+    "w": 3.856903297931809,
+    "h": 4.223602484472046,
+    
+  }
+  
+-------------------------------------------------------
+  - Sub área do terceiro jogador do meu time: 3ª linha
+  {
+    "x": 13.527110117384014,
+    "y": 46.33540372670808,
+    "w": 36.50083845723868,
+    "h": 12.795031055900623,
+    
+  }
+  -- sub área nickname
+  {
+    "x": 20.961430967020682,
+    "y": 47.32919254658386,
+    "w": 10.564561207378427,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área status: números divididos por espaços na seguinte sequencia -> kills deaths assists gold
+  {
+    "x": 31.02291783119061,
+    "y": 47.577639751552795,
+    "w": 12.129681386249304,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área medalha de desempenho: pode ser na cor gold, silver and coper
+  {
+    "x": 43.71157070989379,
+    "y": 48.19875776397516,
+    "w": 3.856903297931809,
+    "h": 7.453416149068319,
+    
+  }
+  -- nota de desempenho: um número flutuante de 1 ou 2 digitos. ex.: 15.1; 9.8; 10.0
+  {
+    "x": 43.71157070989379,
+    "y": 54.90683229813665,
+    "w": 3.856903297931809,
+    "h": 4.223602484472046,
+    
+  }
+	
+-------------------------------------------------------
+  - Sub área do quarto jogador do meu time: 4ª linha
+  {
+    "x": 13.415315818893237,
+    "y": 59.25465838509317,
+    "w": 36.50083845723868,
+    "h": 12.795031055900623,
+    
+  }
+  -- sub área nickname
+  {
+    "x": 21.01732811626607,
+    "y": 60.372670807453424,
+    "w": 10.564561207378427,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área status: números divididos por espaços na seguinte sequencia -> kills deaths assists gold
+  {
+    "x": 30.967020681945222,
+    "y": 60.24844720496894,
+    "w": 12.129681386249304,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área medalha de desempenho: pode ser na cor gold, silver and coper
+  {
+    "x": 43.6556735606484,
+    "y": 61.36645962732919,
+    "w": 3.856903297931809,
+    "h": 7.453416149068319,
+    
+  }
+  -- nota de desempenho: um número flutuante de 1 ou 2 digitos. ex.: 15.1; 9.8; 10.0
+  {
+    "x": 43.76746785913918,
+    "y": 67.95031055900621,
+    "w": 3.856903297931809,
+    "h": 4.223602484472046,
+    
+  }
+  
+  
+  
+-------------------------------------------------------
+  - Sub área do quinto jogador do meu time: 5ª linha
+  {
+    "x": 13.527110117384014,
+    "y": 71.92546583850933,
+    "w": 36.50083845723868,
+    "h": 12.795031055900623,
+    
+  }
+  -- sub área nickname
+  {
+    "x": 20.961430967020682,
+    "y": 73.16770186335404,
+    "w": 10.564561207378427,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área status: números divididos por espaços na seguinte sequencia -> kills deaths assists gold
+  {
+    "x": 31.02291783119061,
+    "y": 73.04347826086956,
+    "w": 12.129681386249304,
+    "h": 4.223602484472046,
+    
+  }
+  -- sub área medalha de desempenho: pode ser na cor gold, silver and coper
+  {
+    "x": 43.71157070989379,
+    "y": 73.54037267080746,
+    "w": 3.856903297931809,
+    "h": 7.453416149068319,
+    
+  }
+  -- nota de desempenho: um número flutuante de 1 ou 2 digitos. ex.: 15.1; 9.8; 10.0
+  {
+    "x": 43.71157070989379,
+    "y": 80.62111801242236,
+    "w": 3.856903297931809,
+    "h": 4.223602484472046,
+    
+  }
+  
+  
+ -- Resultados esperados:
+VICTORY
+{
+    nickname: MTF7
+    kills: 2
+    deaths: 11
+    assists: 32
+    gold: 20094
+    medal: GOLD
+    ratio: 9.1
+    duration: 36:02
+    result: VICTORY
+    my_team_score: 51
+    adversary_team_score: 53 
+}
+DEFEAT
+{
+    nickname: MTF7
+    kills: 10
+    deaths: 9
+    assists: 14
+    gold: 12906
+    medal: GOLD
+    ratio: 9.4
+    duration: 10:50
+    result: DEFEAT
+    my_team_score: 36
+    adversary_team_score: 41
+}

@@ -2,7 +2,19 @@
 
 import cv2
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
+from enum import Enum
+
+
+class PreprocessingMethod(Enum):
+    """Available preprocessing methods for OCR optimization."""
+    GRAYSCALE = "grayscale"
+    GRAYSCALE_SCALED = "grayscale_scaled"
+    THRESHOLD = "threshold"
+    HIGH_CONTRAST = "high_contrast"
+    INVERTED = "inverted"
+    YELLOW_COLOR_MASK = "yellow_color_mask"
+    WHITE_COLOR_MASK = "white_color_mask"
 
 
 class ImagePreprocessor:
@@ -10,6 +22,13 @@ class ImagePreprocessor:
     Handles image preprocessing for OCR optimization.
     Uses OpenCV to enhance image quality and prepare it for text extraction.
     """
+
+    # Default HSV ranges for color masks
+    YELLOW_HSV_LOWER = np.array([15, 40, 120])
+    YELLOW_HSV_UPPER = np.array([45, 255, 255])
+    
+    WHITE_HSV_LOWER = np.array([0, 0, 180])
+    WHITE_HSV_UPPER = np.array([180, 50, 255])
 
     def __init__(self):
         """Initialize the ImagePreprocessor."""
@@ -191,3 +210,208 @@ class ImagePreprocessor:
         processed = self.apply_threshold(resized, threshold_type)
         
         return processed
+
+    # =========================================================================
+    # MLBB-Specific Preprocessing Methods
+    # Based on PREPROCESSING_GUIDE.md recommendations
+    # =========================================================================
+
+    def preprocess_grayscale_scaled(
+        self, 
+        region: np.ndarray, 
+        scale_factor: float = 2.0
+    ) -> np.ndarray:
+        """
+        Grayscale with scaling - good for most text/numbers with good contrast.
+        
+        Args:
+            region: Input image region (BGR or grayscale)
+            scale_factor: Scale factor for upscaling
+            
+        Returns:
+            Preprocessed grayscale scaled image
+        """
+        if len(region.shape) == 3:
+            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = region
+        scaled = cv2.resize(gray, None, fx=scale_factor, fy=scale_factor, 
+                           interpolation=cv2.INTER_CUBIC)
+        return scaled
+
+    def preprocess_threshold(
+        self, 
+        region: np.ndarray, 
+        scale_factor: float = 4.0,
+        threshold_value: int = 127
+    ) -> np.ndarray:
+        """
+        Binary threshold - good for high contrast text on uniform background.
+        
+        Args:
+            region: Input image region
+            scale_factor: Scale factor for upscaling
+            threshold_value: Threshold value for binary conversion
+            
+        Returns:
+            Thresholded binary image
+        """
+        if len(region.shape) == 3:
+            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = region
+        _, binary = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY)
+        scaled = cv2.resize(binary, None, fx=scale_factor, fy=scale_factor,
+                           interpolation=cv2.INTER_CUBIC)
+        return scaled
+
+    def preprocess_high_contrast(
+        self, 
+        region: np.ndarray, 
+        scale_factor: float = 4.0
+    ) -> np.ndarray:
+        """
+        Adaptive threshold - good for uneven lighting or shadows.
+        
+        Args:
+            region: Input image region
+            scale_factor: Scale factor for upscaling
+            
+        Returns:
+            Adaptive thresholded image
+        """
+        if len(region.shape) == 3:
+            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = region
+        adaptive = cv2.adaptiveThreshold(
+            gray, 255, 
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY, 11, 2
+        )
+        scaled = cv2.resize(adaptive, None, fx=scale_factor, fy=scale_factor,
+                           interpolation=cv2.INTER_CUBIC)
+        return scaled
+
+    def preprocess_inverted(
+        self, 
+        region: np.ndarray, 
+        scale_factor: float = 4.0
+    ) -> np.ndarray:
+        """
+        Inverted colors - good for light text on dark background.
+        
+        Args:
+            region: Input image region
+            scale_factor: Scale factor for upscaling
+            
+        Returns:
+            Inverted and scaled image
+        """
+        if len(region.shape) == 3:
+            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = region
+        inverted = 255 - gray
+        scaled = cv2.resize(inverted, None, fx=scale_factor, fy=scale_factor,
+                           interpolation=cv2.INTER_CUBIC)
+        return scaled
+
+    def preprocess_yellow_color_mask(
+        self, 
+        region: np.ndarray, 
+        scale_factor: float = 5.0,
+        lower_hsv: Optional[np.ndarray] = None,
+        upper_hsv: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """
+        Yellow/gold color mask - good for gold badges and yellow numbers.
+        
+        Args:
+            region: Input image region (must be BGR)
+            scale_factor: Scale factor for upscaling
+            lower_hsv: Lower HSV bound (default: [15, 40, 120])
+            upper_hsv: Upper HSV bound (default: [45, 255, 255])
+            
+        Returns:
+            Color masked and scaled image
+        """
+        if lower_hsv is None:
+            lower_hsv = self.YELLOW_HSV_LOWER
+        if upper_hsv is None:
+            upper_hsv = self.YELLOW_HSV_UPPER
+            
+        hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+        scaled = cv2.resize(mask, None, fx=scale_factor, fy=scale_factor,
+                           interpolation=cv2.INTER_CUBIC)
+        return scaled
+
+    def preprocess_white_color_mask(
+        self, 
+        region: np.ndarray, 
+        scale_factor: float = 4.0,
+        lower_hsv: Optional[np.ndarray] = None,
+        upper_hsv: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """
+        White color mask - good for white text on colored backgrounds.
+        
+        Args:
+            region: Input image region (must be BGR)
+            scale_factor: Scale factor for upscaling
+            lower_hsv: Lower HSV bound
+            upper_hsv: Upper HSV bound
+            
+        Returns:
+            Color masked and scaled image
+        """
+        if lower_hsv is None:
+            lower_hsv = self.WHITE_HSV_LOWER
+        if upper_hsv is None:
+            upper_hsv = self.WHITE_HSV_UPPER
+            
+        hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+        scaled = cv2.resize(mask, None, fx=scale_factor, fy=scale_factor,
+                           interpolation=cv2.INTER_CUBIC)
+        return scaled
+
+    def preprocess_region(
+        self,
+        region: np.ndarray,
+        method: str = "grayscale_scaled",
+        scale_factor: float = 2.0,
+        **kwargs
+    ) -> np.ndarray:
+        """
+        Apply preprocessing to a region using the specified method.
+        
+        Args:
+            region: Input image region
+            method: Preprocessing method name
+            scale_factor: Scale factor for upscaling
+            **kwargs: Additional arguments for specific methods
+            
+        Returns:
+            Preprocessed image region
+        """
+        method_map = {
+            "grayscale": lambda r: self.preprocess_grayscale_scaled(r, 1.0),
+            "grayscale_scaled": lambda r: self.preprocess_grayscale_scaled(r, scale_factor),
+            "threshold": lambda r: self.preprocess_threshold(r, scale_factor, kwargs.get("threshold_value", 127)),
+            "high_contrast": lambda r: self.preprocess_high_contrast(r, scale_factor),
+            "inverted": lambda r: self.preprocess_inverted(r, scale_factor),
+            "yellow_color_mask": lambda r: self.preprocess_yellow_color_mask(
+                r, scale_factor, kwargs.get("lower_hsv"), kwargs.get("upper_hsv")
+            ),
+            "white_color_mask": lambda r: self.preprocess_white_color_mask(
+                r, scale_factor, kwargs.get("lower_hsv"), kwargs.get("upper_hsv")
+            ),
+        }
+        
+        if method not in method_map:
+            raise ValueError(f"Unknown preprocessing method: {method}. "
+                           f"Available: {list(method_map.keys())}")
+        
+        return method_map[method](region)

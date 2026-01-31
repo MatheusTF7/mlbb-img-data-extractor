@@ -155,6 +155,52 @@ class Pipeline:
             threshold_type=threshold_type,
         )
 
+    def extract_player_data(
+        self,
+        image_path: str,
+        player_nickname: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Extract data for a specific player from an MLBB screenshot.
+
+        Args:
+            image_path: Path to the screenshot image
+            player_nickname: Nickname of the player to find
+
+        Returns:
+            Dictionary with player data or None if not found
+        """
+        from .extractor.mlbb_extractor import MLBBExtractor
+        
+        extractor = MLBBExtractor(tesseract_cmd=self.text_extractor.tesseract_cmd 
+                                   if hasattr(self.text_extractor, 'tesseract_cmd') else None)
+        
+        game_data = extractor.extract_game_data(image_path, player_nickname)
+        
+        if game_data:
+            return game_data.to_dict()
+        return None
+
+    def extract_all_players_data(
+        self,
+        image_path: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Extract data for all players on my team from an MLBB screenshot.
+
+        Args:
+            image_path: Path to the screenshot image
+
+        Returns:
+            List of dictionaries with all players' data
+        """
+        from .extractor.mlbb_extractor import MLBBExtractor
+        
+        extractor = MLBBExtractor(tesseract_cmd=self.text_extractor.tesseract_cmd 
+                                   if hasattr(self.text_extractor, 'tesseract_cmd') else None)
+        
+        return extractor.extract_all_players(image_path)
+
     def run(
         self,
         image_path: Optional[str] = None,
@@ -208,3 +254,57 @@ class Pipeline:
             "export_paths": export_paths,
             "total_processed": len(results),
         }
+
+    def run_player_extraction(
+        self,
+        image_path: str,
+        player_nickname: str,
+        export_formats: Optional[List[str]] = None,
+        output_filename: str = "player_stats",
+    ) -> Dict[str, Any]:
+        """
+        Run player-specific extraction pipeline.
+
+        Args:
+            image_path: Path to the screenshot image
+            player_nickname: Nickname of the player to find
+            export_formats: List of export formats
+            output_filename: Base filename for output files
+
+        Returns:
+            Dictionary with player data and export paths
+        """
+        if export_formats is None:
+            export_formats = ["json"]
+
+        player_data = self.extract_player_data(image_path, player_nickname)
+        
+        if player_data is None:
+            return {
+                "data": None,
+                "error": f"Player '{player_nickname}' not found",
+                "export_paths": {},
+            }
+
+        # Export data
+        export_paths = {}
+        
+        if "json" in export_formats:
+            json_path = self.data_exporter.export_to_json(
+                player_data, f"{output_filename}.json"
+            )
+            export_paths["json"] = json_path
+        
+        if "csv" in export_formats:
+            import pandas as pd
+            df = pd.DataFrame([player_data])
+            csv_path = self.data_exporter.export_to_csv(
+                df, f"{output_filename}.csv"
+            )
+            export_paths["csv"] = csv_path
+
+        return {
+            "data": player_data,
+            "export_paths": export_paths,
+        }
+
