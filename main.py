@@ -48,6 +48,10 @@ Exemplos:
   # Extrair todos os jogadores do time
   python main.py -i screenshot.png --all-players
 
+  # Processar múltiplas imagens de um diretório
+  python main.py -d ./screenshots -p MTF7
+  python main.py -d ./screenshots --all-players
+
   # Especificar caminho do Tesseract
   python main.py -i screenshot.png -p MTF7 --tesseract-cmd "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
@@ -60,9 +64,14 @@ Exemplos:
     )
     
     # Opções de entrada
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
         "-i", "--image",
-        help="Caminho para a imagem do screenshot",
+        help="Caminho para uma única imagem de screenshot",
+    )
+    input_group.add_argument(
+        "-d", "--directory",
+        help="Caminho para diretório com múltiplas imagens (processamento em lote)",
     )
     
     # Opções de extração de jogador
@@ -130,14 +139,14 @@ Exemplos:
         return list_profiles(args.config)
     
     # Validação de argumentos
-    if not args.image:
-        parser.error("O argumento -i/--image é obrigatório para extração de dados")
-    
     if not args.player and not args.all_players:
         parser.error("Especifique -p/--player para buscar um jogador ou --all-players para todos")
     
     # Executar extração
-    return extract_data(args)
+    if args.directory:
+        return extract_from_directory(args)
+    else:
+        return extract_data(args)
 
 
 def generate_config() -> int:
@@ -213,7 +222,7 @@ def list_profiles(config_path: str = None) -> int:
 
 def extract_data(args) -> int:
     """
-    Executa a extração de dados.
+    Executa a extração de dados de uma única imagem.
     
     Args:
         args: Argumentos da linha de comando
@@ -247,6 +256,137 @@ def extract_data(args) -> int:
     except FileNotFoundError as e:
         print(f"\nErro: Arquivo não encontrado - {e}", file=sys.stderr)
         return 1
+    except Exception as e:
+        print(f"\nErro: {e}", file=sys.stderr)
+        if args.debug:
+            import traceback
+            traceback.print_exc()
+        return 1
+
+
+def extract_from_directory(args) -> int:
+    """
+    Executa a extração de dados de múltiplas imagens em um diretório.
+    
+    Args:
+        args: Argumentos da linha de comando
+        
+    Returns:
+        Código de saída (0 = sucesso, 1 = erro)
+    """
+    from pathlib import Path
+    
+    try:
+        directory = Path(args.directory)
+        
+        if not directory.exists():
+            print(f"\nErro: Diretório não encontrado - {args.directory}", file=sys.stderr)
+            return 1
+        
+        if not directory.is_dir():
+            print(f"\nErro: {args.directory} não é um diretório", file=sys.stderr)
+            return 1
+        
+        # Buscar imagens no diretório
+        image_extensions = ['*.png', '*.jpg', '*.jpeg', '*.PNG', '*.JPG', '*.JPEG']
+        image_files = []
+        for ext in image_extensions:
+            image_files.extend(directory.glob(ext))
+        
+        # Remover duplicatas (glob pode retornar o mesmo arquivo com extensões case-insensitive no Windows)
+        image_files = list(dict.fromkeys(image_files))
+        
+        if not image_files:
+            print(f"\nNenhuma imagem encontrada em: {args.directory}")
+            print("Extensões suportadas: .png, .jpg, .jpeg")
+            return 1
+        
+        image_files = sorted(image_files)
+        
+        print(f"Encontradas {len(image_files)} imagens em: {args.directory}")
+        print("=" * 50)
+        
+        # Carregar configuração
+        config = None
+        if args.config:
+            config = ExtractorConfig(args.config)
+        
+        # Criar extrator
+        extractor = MLBBExtractor(
+            tesseract_cmd=args.tesseract_cmd,
+            config=config
+        )
+        
+        # Definir perfil se especificado
+        if args.profile:
+            extractor.config.set_active_profile(args.profile)
+        
+        all_results = []
+        success_count = 0
+        error_count = 0
+        
+        for i, image_file in enumerate(image_files, 1):
+            print(f"\n[{i}/{len(image_files)}] Processando: {image_file.name}")
+            
+            try:
+                if args.all_players:
+                    # Extrair todos os jogadores
+                    results = extractor.extract_all_players(str(image_file))
+                    
+                    if results:
+                        # Adicionar nome do arquivo aos resultados
+                        for result in results:
+                            result['source_file'] = image_file.name
+                        all_results.extend(results)
+                        success_count += 1
+                        print(f"  ✓ {len(results)} jogadores extraídos")
+                    else:
+                        error_count += 1
+                        print(f"  ✗ Nenhum dado extraído")
+                        
+                else:
+                    # Buscar jogador específico
+                    game_data = extractor.extract_game_data(str(image_file), args.player)
+                    
+                    if game_data:
+                        result = game_data.to_dict()
+                        result['source_file'] = image_file.name
+                        all_results.append(result)
+                        success_count += 1
+                        print(f"  ✓ Jogador '{args.player}' encontrado")
+                    else:
+                        error_count += 1
+                        print(f"  ✗ Jogador '{args.player}' não encontrado")
+                        
+            except Exception as e:
+                error_count += 1
+                print(f"  ✗ Erro: {e}")
+                if args.debug:
+                    import traceback
+                    traceback.print_exc()
+        
+        # Resumo
+        print("\n" + "=" * 50)
+        print("Processamento Completo!")
+        print("=" * 50)
+        print(f"Total de imagens: {len(image_files)}")
+        print(f"Sucesso: {success_count}")
+        print(f"Erros: {error_count}")
+        
+        if all_results:
+            if args.all_players:
+                print(f"Total de jogadores extraídos: {len(all_results)}")
+            
+            # Exportar resultados consolidados
+            output_filename = f"{args.name}_bulk"
+            output_path = export_json(all_results, args.output, output_filename)
+            print(f"\nResultados exportados para: {output_path}")
+            
+            return 0
+        else:
+            print("\nNenhum dado foi extraído.")
+            return 1
+            
     except Exception as e:
         print(f"\nErro: {e}", file=sys.stderr)
         if args.debug:

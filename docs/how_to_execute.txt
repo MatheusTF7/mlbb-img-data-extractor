@@ -1,11 +1,24 @@
-# Buscar jogador específico
+# Imagem Específica
+
+## Buscar jogador específico
 python main.py -i screenshot.png -p "MTF7" --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-# Extrair todos os jogadores
+## Extrair todos os jogadores
 python main.py -i screenshot.png --all-players --tesseract-cmd "..."
 
-# Gerar arquivo de configuração
+## Gerar arquivo de configuração
 python main.py --generate-config
 
-# Listar perfis de resolução
+## Listar perfis de resolução
 python main.py --list-profiles
+
+
+---------------------------------------
+
+# Pasta com várias imagens
+
+## Extrair todos os jogadores de múltiplas imagens:
+python main.py -d images --all-players -n "bulk_extraction"
+
+## Buscar um jogador específico em múltiplas imagens:
+python main.py -d images -p "MTF7" -n "mtf7_matches"
