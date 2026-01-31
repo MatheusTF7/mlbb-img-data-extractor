@@ -1,313 +1,269 @@
 # MLBB Image Data Extractor
 
-A Python project to extract structured data from Mobile Legends Bang Bang (MLBB) end-game screenshots. This tool uses OpenCV for image preprocessing, Tesseract OCR for text extraction, and Pandas for data handling and export. The pipeline processes images, detects relevant regions, parses game statistics, and outputs the results in structured formats such as CSV or JSON.
+Extrai dados de jogadores de screenshots de final de partida do **Mobile Legends Bang Bang** usando OCR (Tesseract) e processamento de imagem (OpenCV).
 
-## Features
+## Funcionalidades
 
-- **Image Preprocessing**: Uses OpenCV to enhance image quality for optimal OCR results
-  - Grayscale conversion
-  - Image resizing for better OCR accuracy
-  - Denoising
-  - Adaptive/Otsu/Binary thresholding
-  - Region detection
+- 🔍 **Busca por jogador**: Encontra um jogador específico pelo nickname
+- 📊 **Extração completa**: Extrai K/D/A, ouro, medalha e rating
+- 👥 **Todos os jogadores**: Extrai dados dos 5 jogadores do time aliado
+- 🎯 **Multi-resolução**: Suporte a múltiplos perfis de resolução via configuração
+- 📄 **Exportação JSON**: Exporta dados estruturados em formato JSON
 
-- **Text Extraction**: Leverages Tesseract OCR to extract text from screenshots
-  - Raw text extraction
-  - Text with bounding boxes
-  - Region-specific text extraction
-  - Player statistics extraction
+## Requisitos
 
-- **Data Parsing**: Intelligent parsing of game statistics
-  - K/D/A (Kills/Deaths/Assists) parsing
-  - Gold and damage parsing (handles K notation)
-  - Player and hero name extraction
-  - Game result detection
-  - Game duration parsing
+- Python 3.10+
+- Tesseract OCR instalado
+- OpenCV
+- pytesseract
 
-- **Data Export**: Multiple export formats supported
-  - CSV export
-  - JSON export
-  - Excel export (optional)
-  - Append to existing files
+## Instalação
 
-## Installation
+### 1. Instalar Tesseract OCR
 
-### Prerequisites
+**Windows:**
+- Baixe o instalador de: https://github.com/UB-Mannheim/tesseract/wiki
+- Instale em `C:\Program Files\Tesseract-OCR\`
 
-1. **Python 3.8 or higher**
+**Linux:**
+```bash
+sudo apt install tesseract-ocr
+```
 
-2. **Tesseract OCR**: Install Tesseract on your system
-   - **Ubuntu/Debian**: `sudo apt-get install tesseract-ocr`
-   - **macOS**: `brew install tesseract`
-   - **Windows**: Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
+**macOS:**
+```bash
+brew install tesseract
+```
 
-### Install Dependencies
+### 2. Instalar dependências Python
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Quick Start
+Ou instalar o pacote:
 
-### Command Line Interface
-
-Process a single image:
 ```bash
-python main.py -i path/to/screenshot.png
+pip install -e .
 ```
 
-Process multiple images:
+## Uso
+
+### Interface de Linha de Comando
+
+#### Buscar um jogador específico
+
 ```bash
-python main.py -m image1.png image2.png image3.png
+python main.py -i screenshot.png -p "NicknameJogador"
 ```
 
-Process all images in a directory:
+#### Extrair todos os jogadores
+
 ```bash
-python main.py -d path/to/screenshots/
+python main.py -i screenshot.png --all-players
 ```
 
-### Python API
+#### Especificar caminho do Tesseract
+
+Se o Tesseract não estiver no PATH:
+
+```bash
+python main.py -i screenshot.png -p "MTF7" --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
+```
+
+#### Gerar arquivo de configuração
+
+```bash
+python main.py --generate-config
+```
+
+#### Listar perfis de resolução
+
+```bash
+python main.py --list-profiles
+```
+
+### Uso como Biblioteca
 
 ```python
-from mlbb_extractor import Pipeline
+from mlbb_extractor import MLBBExtractor
 
-# Initialize the pipeline
-pipeline = Pipeline(output_dir="output")
+# Criar extrator
+extractor = MLBBExtractor(tesseract_cmd="C:/Program Files/Tesseract-OCR/tesseract.exe")
 
-# Process a single image
-result = pipeline.run(
-    image_path="screenshot.png",
-    export_formats=["csv", "json"],
-    output_filename="game_stats"
-)
+# Buscar dados de um jogador específico
+game_data = extractor.extract_game_data("screenshot.png", "MTF7")
 
-print(f"Processed {result['total_processed']} images")
-print(f"Results saved to: {result['export_paths']}")
+if game_data:
+    print(f"Jogador: {game_data.nickname}")
+    print(f"K/D/A: {game_data.kills}/{game_data.deaths}/{game_data.assists}")
+    print(f"Ouro: {game_data.gold}")
+    print(f"Rating: {game_data.ratio}")
+    print(f"Medalha: {game_data.medal}")
+    print(f"Resultado: {game_data.result}")
+
+# Extrair todos os jogadores
+all_players = extractor.extract_all_players("screenshot.png")
+
+for player in all_players:
+    print(f"{player['position']}. {player['nickname']}: {player['kills']}/{player['deaths']}/{player['assists']}")
 ```
 
-## Usage Examples
-
-### Basic Usage
+### Usando Arquivo de Configuração
 
 ```python
-from mlbb_extractor import Pipeline
+from mlbb_extractor import MLBBExtractor, ExtractorConfig
 
-# Create pipeline
-pipeline = Pipeline(output_dir="results")
+# Carregar configuração de arquivo
+config = ExtractorConfig("config.json")
 
-# Process single screenshot
-result = pipeline.run(
-    image_path="examples/game1.png",
-    export_formats=["csv", "json"],
-    output_filename="single_game"
-)
+# Criar extrator com configuração
+extractor = MLBBExtractor(config=config)
 
-# Access the DataFrame
-df = result['data']
-print(df)
+# Usar perfil específico
+extractor.config.set_active_profile("default_2400x1080")
 ```
 
-### Advanced Usage - Using Individual Components
+## Configuração
 
-```python
-from mlbb_extractor import (
-    ImagePreprocessor,
-    TextExtractor,
-    DataParser,
-    DataExporter
-)
-
-# Initialize components
-preprocessor = ImagePreprocessor()
-text_extractor = TextExtractor()
-data_parser = DataParser()
-data_exporter = DataExporter(output_dir="output")
-
-# Process image step by step
-image = preprocessor.load_image("screenshot.png")
-processed = preprocessor.preprocess("screenshot.png")
-text = text_extractor.extract_text(processed)
-stats = text_extractor.extract_player_stats(processed)
-structured_data = data_parser.structure_player_data(stats)
-
-# Export
-df = data_parser.create_dataframe([structured_data])
-data_exporter.export_to_csv(df, "results.csv")
-```
-
-### Custom Preprocessing Parameters
-
-```python
-result = pipeline.run(
-    image_path="screenshot.png",
-    resize_scale=3.0,           # Larger resize for better OCR
-    apply_denoise=False,        # Skip denoising
-    threshold_type="otsu",      # Use Otsu thresholding
-    export_formats=["csv", "json"]
-)
-```
-
-## Command Line Options
-
-```
-usage: main.py [-h] (-i IMAGE | -m MULTIPLE [MULTIPLE ...] | -d DIRECTORY)
-               [-o OUTPUT] [-f {csv,json,excel} [{csv,json,excel} ...]]
-               [-n NAME] [--resize-scale RESIZE_SCALE] [--no-denoise]
-               [--threshold {binary,adaptive,otsu}]
-               [--tesseract-cmd TESSERACT_CMD]
-
-Extract structured data from Mobile Legends end-game screenshots
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -i IMAGE, --image IMAGE
-                        Path to a single screenshot image
-  -m MULTIPLE [MULTIPLE ...], --multiple MULTIPLE [MULTIPLE ...]
-                        Paths to multiple screenshot images
-  -d DIRECTORY, --directory DIRECTORY
-                        Path to directory containing screenshot images
-  -o OUTPUT, --output OUTPUT
-                        Output directory (default: output)
-  -f {csv,json,excel} [{csv,json,excel} ...], --formats {csv,json,excel} [{csv,json,excel} ...]
-                        Export formats (default: csv json)
-  -n NAME, --name NAME  Base filename for output files (default: game_stats)
-  --resize-scale RESIZE_SCALE
-                        Image resize scale factor (default: 2.0)
-  --no-denoise          Skip image denoising
-  --threshold {binary,adaptive,otsu}
-                        Thresholding type (default: adaptive)
-  --tesseract-cmd TESSERACT_CMD
-                        Path to tesseract executable (if not in PATH)
-```
-
-## Project Structure
-
-```
-mlbb-img-data-extractor/
-├── mlbb_extractor/           # Main package
-│   ├── __init__.py          # Package initialization
-│   ├── pipeline.py          # Main pipeline orchestrator
-│   ├── config.py            # Configuration management
-│   ├── preprocessor/        # Image preprocessing module
-│   │   ├── __init__.py
-│   │   └── image_processor.py
-│   ├── ocr/                 # OCR text extraction module
-│   │   ├── __init__.py
-│   │   └── text_extractor.py
-│   ├── parser/              # Data parsing module
-│   │   ├── __init__.py
-│   │   └── data_parser.py
-│   └── exporter/            # Data export module
-│       ├── __init__.py
-│       └── data_exporter.py
-├── examples/                # Example scripts
-│   ├── basic_usage.py
-│   └── advanced_usage.py
-├── tests/                   # Test suite
-├── main.py                  # CLI entry point
-├── requirements.txt         # Python dependencies
-├── .gitignore              # Git ignore file
-├── LICENSE                 # MIT License
-└── README.md               # This file
-```
-
-## Output Format
-
-### CSV Output
-```csv
-player_name,hero_name,kills,deaths,assists,gold,damage,game_result,duration,source_image
-Player1,Layla,10,2,15,16300.0,89200.0,Victory,1125,screenshot1.png
-Player2,Tigreal,5,8,20,12500.0,45600.0,Defeat,945,screenshot2.png
-```
-
-### JSON Output
-```json
-[
-  {
-    "player_name": "Player1",
-    "hero_name": "Layla",
-    "kills": 10,
-    "deaths": 2,
-    "assists": 15,
-    "gold": 16300.0,
-    "damage": 89200.0,
-    "game_result": "Victory",
-    "duration": 1125,
-    "source_image": "screenshot1.png"
-  }
-]
-```
-
-## Configuration
-
-Create a `config.json` file to customize processing parameters:
+O arquivo `config.json` permite definir múltiplos perfis de resolução:
 
 ```json
 {
-  "preprocessing": {
-    "resize_scale": 2.5,
-    "apply_denoise": true,
-    "threshold_type": "otsu"
-  },
-  "ocr": {
-    "tesseract_cmd": "/usr/bin/tesseract",
-    "config": "--psm 6 --oem 3"
-  },
-  "export": {
-    "output_dir": "results",
-    "default_formats": ["csv", "json"],
-    "default_filename": "mlbb_stats"
-  }
+  "tesseract_cmd": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+  "output_dir": "output",
+  "active_profile": "default_2400x1080",
+  "profiles": [
+    {
+      "name": "default_2400x1080",
+      "description": "Perfil padrão para resolução 2400x1080",
+      "reference_width": 2400,
+      "reference_height": 1080,
+      "result_region": {"x": 40.02, "y": 3.11, "w": 19.90, "h": 10.68},
+      "my_team_score_region": {"x": 32.48, "y": 5.09, "w": 4.97, "h": 8.57},
+      "adversary_score_region": {"x": 62.60, "y": 5.22, "w": 4.81, "h": 7.95},
+      "duration_region": {"x": 77.25, "y": 11.43, "w": 4.58, "h": 4.10},
+      "players": [
+        {
+          "nickname": {"x": 21.07, "y": 22.11, "w": 10.56, "h": 4.22},
+          "stats": {"x": 31.13, "y": 21.99, "w": 12.13, "h": 4.22},
+          "medal": {"x": 43.77, "y": 22.61, "w": 3.86, "h": 7.45},
+          "ratio": {"x": 43.77, "y": 29.32, "w": 3.86, "h": 4.22}
+        }
+      ]
+    }
+  ]
 }
 ```
 
-## Requirements
+### Coordenadas em Porcentagem
 
-- Python >= 3.8
-- opencv-python >= 4.8.0
-- pytesseract >= 0.3.10
-- pandas >= 2.0.0
-- numpy >= 1.24.0
-- Pillow >= 10.0.0
+Todas as coordenadas são definidas em **porcentagem** (0-100) da imagem, o que permite que as regiões funcionem em imagens de diferentes resoluções mantendo a mesma proporção.
+
+- `x`: Posição horizontal em porcentagem
+- `y`: Posição vertical em porcentagem  
+- `w`: Largura em porcentagem
+- `h`: Altura em porcentagem
+
+## Estrutura do Projeto
+
+```
+mlbb-img-data-extractor/
+├── main.py                      # CLI principal
+├── config.json                  # Arquivo de configuração (gerado)
+├── requirements.txt             # Dependências Python
+├── setup.py                     # Instalação do pacote
+├── mlbb_extractor/
+│   ├── __init__.py             # Exports do pacote
+│   ├── config.py               # Sistema de configuração multi-resolução
+│   ├── extractor/
+│   │   ├── __init__.py
+│   │   └── mlbb_extractor.py   # Extrator principal
+│   └── preprocessor/
+│       ├── __init__.py
+│       └── image_processor.py  # Pré-processamento de imagem
+├── images/                      # Screenshots de teste
+└── output/                      # Arquivos exportados
+```
+
+## Dados Extraídos
+
+### Por Jogador
+
+| Campo | Descrição |
+|-------|-----------|
+| `nickname` | Nome do jogador |
+| `kills` | Número de abates |
+| `deaths` | Número de mortes |
+| `assists` | Número de assistências |
+| `gold` | Ouro total obtido |
+| `medal` | Tipo de medalha (GOLD, SILVER, BRONZE) |
+| `ratio` | Rating de performance |
+| `position` | Posição no time (1-5) |
+
+### Informações da Partida
+
+| Campo | Descrição |
+|-------|-----------|
+| `result` | Resultado (VICTORY/DEFEAT) |
+| `my_team_score` | Placar do time aliado |
+| `adversary_team_score` | Placar do time adversário |
+| `duration` | Duração da partida (mm:ss) |
+
+## Exemplo de Saída
+
+```json
+{
+  "nickname": "MTF7",
+  "kills": 10,
+  "deaths": 9,
+  "assists": 14,
+  "gold": 12906,
+  "medal": "GOLD",
+  "ratio": 9.47,
+  "result": "DEFEAT",
+  "my_team_score": 36,
+  "adversary_team_score": 41,
+  "duration": "30:50"
+}
+```
+
+## Adicionando Novos Perfis de Resolução
+
+Se seus screenshots têm proporções diferentes do perfil padrão (2400x1080):
+
+1. Gere o arquivo de configuração:
+   ```bash
+   python main.py --generate-config
+   ```
+
+2. Edite `config.json` e adicione um novo perfil com as coordenadas ajustadas
+
+3. Use o perfil:
+   ```bash
+   python main.py -i screenshot.png --all-players --profile "meu_perfil"
+   ```
 
 ## Troubleshooting
 
-### Tesseract not found
-If you get "Tesseract not found" error, install Tesseract OCR or specify the path:
+### OCR não funciona
 
-```python
-pipeline = Pipeline(tesseract_cmd="/path/to/tesseract")
-```
+1. Verifique se o Tesseract está instalado corretamente
+2. Use `--tesseract-cmd` para especificar o caminho completo
+3. Verifique se a imagem está em boa qualidade
 
-Or via CLI:
-```bash
-python main.py -i image.png --tesseract-cmd /path/to/tesseract
-```
+### Jogador não encontrado
 
-### Poor OCR results
-Try adjusting preprocessing parameters:
-- Increase `resize_scale` (try 3.0 or higher)
-- Try different `threshold_type` (adaptive, otsu, binary)
-- Ensure screenshots are high quality
+1. O nickname pode ter caracteres especiais que o OCR não reconhece
+2. Use parte do nickname (busca parcial é suportada)
+3. Verifique se o jogador está no time da esquerda (aliado)
 
-## Contributing
+### Valores incorretos
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. A resolução da imagem pode ser diferente do perfil ativo
+2. Crie um perfil customizado com coordenadas ajustadas
+3. Use `--list-profiles` para ver os perfis disponíveis
 
-## License
+## Licença
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- OpenCV for image processing capabilities
-- Tesseract OCR for text extraction
-- Pandas for data manipulation
-
-## Author
-
-MatheusTF7
-
----
-
-*Um projeto de teste para extrair dados de uma screenshot de final de partida do Mobile Legends.*
+MIT License

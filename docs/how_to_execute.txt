@@ -1,0 +1,11 @@
+# Buscar jogador específico
+python main.py -i screenshot.png -p "MTF7" --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+# Extrair todos os jogadores
+python main.py -i screenshot.png --all-players --tesseract-cmd "..."
+
+# Gerar arquivo de configuração
+python main.py --generate-config
+
+# Listar perfis de resolução
+python main.py --list-profiles

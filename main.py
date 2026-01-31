@@ -1,6 +1,29 @@
 #!/usr/bin/env python3
 """
-Command-line interface for the MLBB Image Data Extractor.
+MLBB Image Data Extractor - Interface de Linha de Comando
+
+Este script extrai dados de jogadores de screenshots de final de partida
+do Mobile Legends Bang Bang.
+
+Modos de Operação:
+1. Busca por jogador específico (-p/--player)
+2. Extração de todos os jogadores (--all-players)
+
+Exemplos de Uso:
+    # Extrair dados de um jogador específico
+    python main.py -i screenshot.png -p "MTF7"
+    
+    # Extrair todos os jogadores
+    python main.py -i screenshot.png --all-players
+    
+    # Com caminho do Tesseract (se não estiver no PATH)
+    python main.py -i screenshot.png -p "MTF7" --tesseract-cmd "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+    
+    # Com arquivo de configuração personalizado
+    python main.py -i screenshot.png --all-players --config config.json
+    
+    # Gerar arquivo de configuração de exemplo
+    python main.py --generate-config
 """
 
 import argparse
@@ -8,267 +31,302 @@ import sys
 import json
 from pathlib import Path
 
-from mlbb_extractor import Pipeline, MLBBExtractor
+from mlbb_extractor import MLBBExtractor
+from mlbb_extractor.config import ExtractorConfig
 
 
 def main():
-    """Main CLI function."""
+    """Função principal da CLI."""
     parser = argparse.ArgumentParser(
-        description="Extract structured data from Mobile Legends end-game screenshots",
+        description="Extrai dados de jogadores de screenshots do MLBB",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Extract data for a specific player
+Exemplos:
+  # Extrair dados de um jogador específico
   python main.py -i screenshot.png -p MTF7
 
-  # Extract all players from an image
+  # Extrair todos os jogadores do time
   python main.py -i screenshot.png --all-players
 
-  # Process multiple images (legacy mode)
-  python main.py -m img1.png img2.png -f csv json
+  # Especificar caminho do Tesseract
+  python main.py -i screenshot.png -p MTF7 --tesseract-cmd "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
-  # Process a directory (legacy mode)
-  python main.py -d ./screenshots/ -o ./results/
+  # Usar arquivo de configuração
+  python main.py -i screenshot.png --all-players --config config.json
+
+  # Gerar arquivo de configuração de exemplo
+  python main.py --generate-config
         """
     )
     
-    # Input options
-    input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument(
+    # Opções de entrada
+    parser.add_argument(
         "-i", "--image",
-        help="Path to a single screenshot image",
-    )
-    input_group.add_argument(
-        "-m", "--multiple",
-        nargs="+",
-        help="Paths to multiple screenshot images",
-    )
-    input_group.add_argument(
-        "-d", "--directory",
-        help="Path to directory containing screenshot images",
+        help="Caminho para a imagem do screenshot",
     )
     
-    # Player extraction options
-    parser.add_argument(
+    # Opções de extração de jogador
+    player_group = parser.add_mutually_exclusive_group()
+    player_group.add_argument(
         "-p", "--player",
-        help="Nickname of the player to extract data for",
+        help="Nickname do jogador a ser buscado",
     )
-    parser.add_argument(
+    player_group.add_argument(
         "--all-players",
         action="store_true",
-        help="Extract data for all 5 players on my team",
+        help="Extrair dados de todos os 5 jogadores do time aliado",
     )
     
-    # Output options
+    # Opções de saída
     parser.add_argument(
         "-o", "--output",
         default="output",
-        help="Output directory (default: output)",
-    )
-    parser.add_argument(
-        "-f", "--formats",
-        nargs="+",
-        choices=["csv", "json", "excel"],
-        default=["json"],
-        help="Export formats (default: json)",
+        help="Diretório de saída (padrão: output)",
     )
     parser.add_argument(
         "-n", "--name",
         default="player_stats",
-        help="Base filename for output files (default: player_stats)",
+        help="Nome base para os arquivos de saída (padrão: player_stats)",
     )
     
-    # Processing options
+    # Opções de configuração
     parser.add_argument(
-        "--resize-scale",
-        type=float,
-        default=2.0,
-        help="Image resize scale factor (default: 2.0)",
-    )
-    parser.add_argument(
-        "--no-denoise",
-        action="store_true",
-        help="Skip image denoising",
-    )
-    parser.add_argument(
-        "--threshold",
-        choices=["binary", "adaptive", "otsu"],
-        default="adaptive",
-        help="Thresholding type (default: adaptive)",
+        "--config",
+        help="Caminho para arquivo de configuração JSON",
     )
     parser.add_argument(
         "--tesseract-cmd",
-        help="Path to tesseract executable (if not in PATH)",
+        help="Caminho para o executável do Tesseract (se não estiver no PATH)",
+    )
+    parser.add_argument(
+        "--profile",
+        help="Nome do perfil de resolução a ser usado",
+    )
+    
+    # Utilitários
+    parser.add_argument(
+        "--generate-config",
+        action="store_true",
+        help="Gera um arquivo de configuração de exemplo",
+    )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="Lista os perfis de resolução disponíveis",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Enable debug output",
+        help="Ativa saída de debug",
     )
     
-    # Parse arguments
     args = parser.parse_args()
     
-    # Initialize pipeline
-    print("Initializing MLBB Image Data Extractor...")
-    pipeline = Pipeline(
-        output_dir=args.output,
-        tesseract_cmd=args.tesseract_cmd,
-    )
+    # Comandos utilitários
+    if args.generate_config:
+        return generate_config()
     
+    if args.list_profiles:
+        return list_profiles(args.config)
+    
+    # Validação de argumentos
+    if not args.image:
+        parser.error("O argumento -i/--image é obrigatório para extração de dados")
+    
+    if not args.player and not args.all_players:
+        parser.error("Especifique -p/--player para buscar um jogador ou --all-players para todos")
+    
+    # Executar extração
+    return extract_data(args)
+
+
+def generate_config() -> int:
+    """Gera um arquivo de configuração de exemplo."""
+    config = ExtractorConfig()
+    output_path = "config.json"
+    config.save_to_file(output_path)
+    
+    print(f"Arquivo de configuração gerado: {output_path}")
+    print("\nO arquivo contém:")
+    print("- Perfil padrão para resolução 2400x1080")
+    print("- Configurações de Tesseract e diretório de saída")
+    print("\nEdite o arquivo para adicionar novos perfis de resolução")
+    print("ou ajustar as coordenadas das regiões.")
+    
+    return 0
+
+
+def list_profiles(config_path: str = None) -> int:
+    """Lista os perfis de resolução disponíveis."""
+    config = ExtractorConfig(config_path)
+    
+    print("Perfis de Resolução Disponíveis:")
+    print("=" * 50)
+    
+    for name in config.list_profiles():
+        profile = config.profiles[name]
+        active = " (ativo)" if name == config.active_profile_name else ""
+        print(f"\n{name}{active}")
+        print(f"  Descrição: {profile.description}")
+        print(f"  Resolução de referência: {profile.reference_width}x{profile.reference_height}")
+    
+    return 0
+
+
+def extract_data(args) -> int:
+    """
+    Executa a extração de dados.
+    
+    Args:
+        args: Argumentos da linha de comando
+        
+    Returns:
+        Código de saída (0 = sucesso, 1 = erro)
+    """
     try:
-        # Player-specific extraction mode
-        if args.image and (args.player or args.all_players):
-            return process_player_extraction(args, pipeline)
+        # Carregar configuração
+        config = None
+        if args.config:
+            config = ExtractorConfig(args.config)
         
-        # Legacy mode - general processing
-        if args.image:
-            print(f"Processing single image: {args.image}")
-            result = pipeline.run(
-                image_path=args.image,
-                export_formats=args.formats,
-                output_filename=args.name,
-                resize_scale=args.resize_scale,
-                apply_denoise=not args.no_denoise,
-                threshold_type=args.threshold,
-            )
-        elif args.multiple:
-            print(f"Processing {len(args.multiple)} images...")
-            result = pipeline.run(
-                image_paths=args.multiple,
-                export_formats=args.formats,
-                output_filename=args.name,
-                resize_scale=args.resize_scale,
-                apply_denoise=not args.no_denoise,
-                threshold_type=args.threshold,
-            )
-        elif args.directory:
-            print(f"Processing images from directory: {args.directory}")
-            result = pipeline.run(
-                directory_path=args.directory,
-                export_formats=args.formats,
-                output_filename=args.name,
-                resize_scale=args.resize_scale,
-                apply_denoise=not args.no_denoise,
-                threshold_type=args.threshold,
-            )
+        # Criar extrator
+        extractor = MLBBExtractor(
+            tesseract_cmd=args.tesseract_cmd,
+            config=config
+        )
         
-        # Display results
-        print("\n" + "=" * 50)
-        print("Processing Complete!")
-        print("=" * 50)
-        print(f"Total images processed: {result['total_processed']}")
-        print("\nExported files:")
-        for format_type, path in result['export_paths'].items():
-            print(f"  {format_type.upper()}: {path}")
+        # Definir perfil se especificado
+        if args.profile:
+            extractor.config.set_active_profile(args.profile)
         
-        print("\nExtracted data preview:")
-        print(result['data'].head())
+        print(f"Processando imagem: {args.image}")
         
-        return 0
-        
+        if args.all_players:
+            return extract_all_players(extractor, args)
+        else:
+            return extract_single_player(extractor, args)
+            
+    except FileNotFoundError as e:
+        print(f"\nErro: Arquivo não encontrado - {e}", file=sys.stderr)
+        return 1
     except Exception as e:
-        print(f"\nError: {e}", file=sys.stderr)
+        print(f"\nErro: {e}", file=sys.stderr)
         if args.debug:
             import traceback
             traceback.print_exc()
         return 1
 
 
-def process_player_extraction(args, pipeline: Pipeline) -> int:
+def extract_single_player(extractor: MLBBExtractor, args) -> int:
     """
-    Process player-specific extraction.
+    Extrai dados de um jogador específico.
     
     Args:
-        args: Parsed command line arguments
-        pipeline: Pipeline instance
+        extractor: Instância do MLBBExtractor
+        args: Argumentos da linha de comando
         
     Returns:
-        Exit code
+        Código de saída
     """
-    extractor = MLBBExtractor(tesseract_cmd=args.tesseract_cmd)
+    print(f"Buscando jogador: {args.player}")
     
-    print(f"Processing image: {args.image}")
+    game_data = extractor.extract_game_data(args.image, args.player)
     
-    if args.all_players:
-        # Extract all players
-        print("Extracting data for all players on my team...")
-        results = extractor.extract_all_players(args.image)
-        
-        if not results:
-            print("No player data could be extracted.")
-            return 1
-        
-        # Display results
-        print("\n" + "=" * 50)
-        print("Extraction Complete!")
-        print("=" * 50)
-        
-        for player_data in results:
-            print(f"\nPlayer {player_data['position']}: {player_data['nickname']}")
-            print(f"  K/D/A: {player_data['kills']}/{player_data['deaths']}/{player_data['assists']}")
-            print(f"  Gold: {player_data['gold']}")
-            print(f"  Rating: {player_data['ratio']}")
-            print(f"  Medal: {player_data['medal']}")
-        
-        # First player's match info
-        if results:
-            print(f"\nMatch Info:")
-            print(f"  Result: {results[0]['result']}")
-            print(f"  Score: {results[0]['my_team_score']} - {results[0]['adversary_team_score']}")
-            print(f"  Duration: {results[0]['duration']}")
-        
-        # Export
-        if "json" in args.formats:
-            output_path = Path(args.output) / f"{args.name}.json"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
-            print(f"\nExported to: {output_path}")
-        
-        return 0
+    if game_data is None:
+        print(f"\nJogador '{args.player}' não encontrado no screenshot.")
+        print("Certifique-se de que o nickname está correto (matches parciais são suportados).")
+        return 1
     
-    elif args.player:
-        # Extract specific player
-        print(f"Searching for player: {args.player}")
-        
-        game_data = extractor.extract_game_data(args.image, args.player)
-        
-        if game_data is None:
-            print(f"\nPlayer '{args.player}' not found in the screenshot.")
-            print("Make sure the nickname matches (partial matches are supported).")
-            return 1
-        
-        # Display results
-        print("\n" + "=" * 50)
-        print("Extraction Complete!")
-        print("=" * 50)
-        
-        result_dict = game_data.to_dict()
-        
-        print(f"\nPlayer: {result_dict['nickname']}")
-        print(f"  Kills: {result_dict['kills']}")
-        print(f"  Deaths: {result_dict['deaths']}")
-        print(f"  Assists: {result_dict['assists']}")
-        print(f"  Gold: {result_dict['gold']}")
-        print(f"  Rating: {result_dict['ratio']}")
-        print(f"  Medal: {result_dict['medal']}")
-        print(f"\nMatch Info:")
-        print(f"  Result: {result_dict['result']}")
-        print(f"  Score: {result_dict['my_team_score']} - {result_dict['adversary_team_score']}")
-        print(f"  Duration: {result_dict['duration']}")
-        
-        # Export
-        if "json" in args.formats:
-            output_path = Path(args.output) / f"{args.name}.json"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result_dict, f, indent=2, ensure_ascii=False)
-            print(f"\nExported to: {output_path}")
-        
-        return 0
+    # Exibir resultados
+    print("\n" + "=" * 50)
+    print("Extração Completa!")
+    print("=" * 50)
     
-    return 1
+    result_dict = game_data.to_dict()
+    
+    print(f"\nJogador: {result_dict['nickname']}")
+    print(f"  Kills: {result_dict['kills']}")
+    print(f"  Deaths: {result_dict['deaths']}")
+    print(f"  Assists: {result_dict['assists']}")
+    print(f"  Ouro: {result_dict['gold']}")
+    print(f"  Rating: {result_dict['ratio']}")
+    print(f"  Medalha: {result_dict['medal']}")
+    print(f"\nInformações da Partida:")
+    print(f"  Resultado: {result_dict['result']}")
+    print(f"  Placar: {result_dict['my_team_score']} - {result_dict['adversary_team_score']}")
+    print(f"  Duração: {result_dict['duration']}")
+    
+    # Exportar
+    output_path = export_json(result_dict, args.output, args.name)
+    print(f"\nExportado para: {output_path}")
+    
+    return 0
+
+
+def extract_all_players(extractor: MLBBExtractor, args) -> int:
+    """
+    Extrai dados de todos os jogadores.
+    
+    Args:
+        extractor: Instância do MLBBExtractor
+        args: Argumentos da linha de comando
+        
+    Returns:
+        Código de saída
+    """
+    print("Extraindo dados de todos os jogadores do time aliado...")
+    
+    results = extractor.extract_all_players(args.image)
+    
+    if not results:
+        print("Nenhum dado de jogador pôde ser extraído.")
+        return 1
+    
+    # Exibir resultados
+    print("\n" + "=" * 50)
+    print("Extração Completa!")
+    print("=" * 50)
+    
+    for player_data in results:
+        print(f"\nJogador {player_data['position']}: {player_data['nickname']}")
+        print(f"  K/D/A: {player_data['kills']}/{player_data['deaths']}/{player_data['assists']}")
+        print(f"  Ouro: {player_data['gold']}")
+        print(f"  Rating: {player_data['ratio']}")
+        print(f"  Medalha: {player_data['medal']}")
+    
+    # Informações da partida (do primeiro jogador)
+    if results:
+        print(f"\nInformações da Partida:")
+        print(f"  Resultado: {results[0]['result']}")
+        print(f"  Placar: {results[0]['my_team_score']} - {results[0]['adversary_team_score']}")
+        print(f"  Duração: {results[0]['duration']}")
+    
+    # Exportar
+    output_path = export_json(results, args.output, args.name)
+    print(f"\nExportado para: {output_path}")
+    
+    return 0
+
+
+def export_json(data, output_dir: str, filename: str) -> str:
+    """
+    Exporta dados para arquivo JSON.
+    
+    Args:
+        data: Dados a serem exportados
+        output_dir: Diretório de saída
+        filename: Nome base do arquivo
+        
+    Returns:
+        Caminho do arquivo exportado
+    """
+    output_path = Path(output_dir) / f"{filename}.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    return str(output_path)
 
 
 if __name__ == "__main__":
