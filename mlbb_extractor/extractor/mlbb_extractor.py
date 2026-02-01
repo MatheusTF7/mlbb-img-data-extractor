@@ -784,7 +784,7 @@ class MLBBExtractor:
     def extract_all_players(
         self, 
         image_path: str
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Extrai dados de todos os 5 jogadores do time aliado.
         
@@ -792,7 +792,15 @@ class MLBBExtractor:
             image_path: Caminho para a imagem do screenshot
             
         Returns:
-            Lista de dicionários com dados de cada jogador
+            Dicionário com informações da partida e dados dos jogadores:
+            {
+                "result": str,
+                "my_team_score": int,
+                "adversary_team_score": int,
+                "duration": str,
+                "my_team": List[Dict],
+                "enemy_team": List[Dict]
+            }
         """
         # Configurar nome da imagem para debug
         self._current_image_name = Path(image_path).stem
@@ -806,10 +814,10 @@ class MLBBExtractor:
         
         match_info = self.extract_match_info(image)
         
-        results = []
+        my_team = []
         for idx in range(5):
             player_stats = self.extract_player_data(image, idx)
-            data = {
+            player_data = {
                 "nickname": player_stats.nickname,
                 "kills": player_stats.kills,
                 "deaths": player_stats.deaths,
@@ -818,15 +826,18 @@ class MLBBExtractor:
                 "medal": player_stats.medal,
                 "ratio": player_stats.ratio,
                 "position": player_stats.position,
-                "result": match_info.result,
-                "my_team_score": match_info.my_team_score,
-                "adversary_team_score": match_info.adversary_team_score,
-                "duration": match_info.duration,
                 "is_mvp": player_stats.is_mvp
             }
-            results.append(data)
+            my_team.append(player_data)
         
-        return results
+        return {
+            "result": match_info.result,
+            "my_team_score": match_info.my_team_score,
+            "adversary_team_score": match_info.adversary_team_score,
+            "duration": match_info.duration,
+            "my_team": my_team,
+            "enemy_team": []
+        }
 
     # =========================================================================
     # MÉTODOS AUXILIARES DE PARSING

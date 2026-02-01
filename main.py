@@ -345,15 +345,14 @@ def extract_from_directory(args) -> int:
             try:
                 if args.all_players:
                     # Extrair todos os jogadores
-                    results = extractor.extract_all_players(str(image_file))
+                    match_data = extractor.extract_all_players(str(image_file))
                     
-                    if results:
+                    if match_data and match_data.get('my_team'):
                         # Adicionar nome do arquivo aos resultados
-                        for result in results:
-                            result['source_file'] = image_file.name
-                        all_results.extend(results)
+                        match_data['source_file'] = image_file.name
+                        all_results.append(match_data)
                         success_count += 1
-                        print(f"  ✓ {len(results)} jogadores extraídos")
+                        print(f"  ✓ {len(match_data['my_team'])} jogadores extraídos")
                     else:
                         error_count += 1
                         print(f"  ✗ Nenhum dado extraído")
@@ -390,7 +389,9 @@ def extract_from_directory(args) -> int:
         
         if all_results:
             if args.all_players:
-                print(f"Total de jogadores extraídos: {len(all_results)}")
+                total_players = sum(len(match['my_team']) for match in all_results)
+                print(f"Total de partidas: {len(all_results)}")
+                print(f"Total de jogadores extraídos: {total_players}")
             
             # Exportar resultados consolidados
             output_filename = f"{args.name}_bulk"
@@ -473,7 +474,7 @@ def extract_all_players(extractor: MLBBExtractor, args) -> int:
     
     results = extractor.extract_all_players(args.image)
     
-    if not results:
+    if not results or not results.get('my_team'):
         print("Nenhum dado de jogador pôde ser extraído.")
         return 1
     
@@ -482,7 +483,7 @@ def extract_all_players(extractor: MLBBExtractor, args) -> int:
     print("Extração Completa!")
     print("=" * 50)
     
-    for player_data in results:
+    for player_data in results['my_team']:
         mvp_indicator = " 🏆 MVP" if player_data.get('is_mvp', False) else "-"
         print(f"\nJogador {player_data['position']}: {player_data['nickname']}{mvp_indicator}")
         print(f"  K/D/A: {player_data['kills']}/{player_data['deaths']}/{player_data['assists']}")
@@ -491,12 +492,11 @@ def extract_all_players(extractor: MLBBExtractor, args) -> int:
         print(f"  Medalha: {player_data['medal']}")
         print(f"  MVP: {mvp_indicator.strip()}")
     
-    # Informações da partida (do primeiro jogador)
-    if results:
-        print(f"\nInformações da Partida:")
-        print(f"  Resultado: {results[0]['result']}")
-        print(f"  Placar: {results[0]['my_team_score']} - {results[0]['adversary_team_score']}")
-        print(f"  Duração: {results[0]['duration']}")
+    # Informações da partida
+    print(f"\nInformações da Partida:")
+    print(f"  Resultado: {results['result']}")
+    print(f"  Placar: {results['my_team_score']} - {results['adversary_team_score']}")
+    print(f"  Duração: {results['duration']}")
     
     # Exportar
     output_path = export_json(results, args.output, args.name)
