@@ -13,6 +13,7 @@ Funcionalidades:
 
 import re
 import cv2
+import json
 import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
@@ -127,6 +128,9 @@ class MLBBExtractor:
         if self.config.tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = self.config.tesseract_cmd
         self.pytesseract = pytesseract
+        
+        # Carregar mapeamentos de nicknames
+        self.nickname_mappings = self._load_nickname_mappings()
         
         # Inicializar controle de debug
         self._debug_counter = 0
@@ -265,8 +269,11 @@ class MLBBExtractor:
         self._save_debug_image(nickname_region, "nickname", "raw")
         processed = self.preprocessor.preprocess_grayscale_scaled(nickname_region, 2)
         self._save_debug_image(processed, "nickname", "processed")
-        nickname = self.pytesseract.image_to_string(processed, config="--psm 7").strip()
-        return self._clean_nickname(nickname)
+        # PSM 6 para suportar múltiplas linhas (tag do clã + nickname)
+        nickname = self.pytesseract.image_to_string(processed, config="--psm 6").strip()
+        nickname = self._clean_nickname(nickname)
+        # Aplicar mapeamento se existir
+        return self._apply_nickname_mapping(nickname)
 
     def extract_player_stats(
         self, 
@@ -540,17 +547,28 @@ class MLBBExtractor:
         """
         target_lower = target_nickname.lower().strip()
         
+        # Criar lista de targets possíveis (incluindo mapeamentos)
+        possible_targets = [target_lower]
+        
+        # Adicionar mapeamentos reversos (se target é o nickname mapeado, buscar pelo original)
+        for original, mapped in self.nickname_mappings.items():
+            if mapped.lower().strip() == target_lower:
+                possible_targets.append(original.lower().strip())
+            elif original.lower().strip() == target_lower:
+                possible_targets.append(mapped.lower().strip())
+        
         for idx, player_config in enumerate(self.profile.players):
             nickname = self.extract_player_nickname(image, player_config)
             nickname_lower = nickname.lower().strip()
             
-            # Match exato ou parcial
-            if target_lower in nickname_lower or nickname_lower in target_lower:
-                return idx
-            
-            # Match por similaridade
-            if self._similar_names(target_lower, nickname_lower):
-                return idx
+            # Match exato ou parcial com qualquer target possível
+            for target in possible_targets:
+                if target in nickname_lower or nickname_lower in target:
+                    return idx
+                
+                # Match por similaridade
+                if self._similar_names(target, nickname_lower):
+                    return idx
         
         return None
 
@@ -749,10 +767,36 @@ class MLBBExtractor:
         
         return "00:00"
 
+    def _load_nickname_mappings(self) -> Dict[str, str]:
+        """Carrega mapeamentos de nicknames do arquivo de configuração."""
+        mappings_file = Path("nickname_mappings.json")
+        if not mappings_file.exists():
+            return {}
+        
+        try:
+            with open(mappings_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get("mappings", {})
+        except Exception as e:
+            print(f"Aviso: Erro ao carregar mapeamentos de nicknames: {e}")
+            return {}
+    
+    def _apply_nickname_mapping(self, nickname: str) -> str:
+        """Aplica mapeamento de nickname se existir."""
+        if nickname in self.nickname_mappings:
+            mapped = self.nickname_mappings[nickname]
+            if self.config.debug_mode:
+                print(f"  → Mapeamento aplicado: '{nickname}' → '{mapped}'")
+            return mapped
+        return nickname
+    
     def _clean_nickname(self, text: str) -> str:
         """Limpa nickname extraído."""
         cleaned = text.strip()
         cleaned = re.sub(r'^[@#$%^&*()_+=\[\]{}|\\<>/?`~]+', '', cleaned)
         cleaned = re.sub(r'[@#$%^&*()_+=\[\]{}|\\<>/?`~]+$', '', cleaned)
-        cleaned = cleaned.replace('\n', '').replace('\r', '')
+        # Substituir quebras de linha por espaço para juntar tag do clã + nickname
+        cleaned = cleaned.replace('\n', ' ').replace('\r', '')
+        # Remover múltiplos espaços consecutivos
+        cleaned = re.sub(r'\s+', ' ', cleaned)
         return cleaned.strip()
