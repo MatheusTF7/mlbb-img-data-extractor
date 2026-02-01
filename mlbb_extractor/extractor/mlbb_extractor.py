@@ -32,7 +32,7 @@ class MedalType(Enum):
     """Tipos de medalha baseados em cor."""
     GOLD = "GOLD"
     SILVER = "SILVER"
-    BRONZE = "BRONZE"
+    COPPER = "COPPER"
     NONE = "NONE"
 
 
@@ -506,7 +506,7 @@ class MLBBExtractor:
         player_config: PlayerRegionConfig
     ) -> str:
         """
-        Detecta a cor da medalha (GOLD, SILVER, BRONZE) do jogador.
+        Detecta a cor da medalha (GOLD, SILVER, COPPER) do jogador.
         Usa análise de cor ao invés de OCR.
         """
         medal_region = self._extract_region(image, player_config.medal)
@@ -599,18 +599,18 @@ class MLBBExtractor:
         silver_lower = np.array([0, 0, 150])
         silver_upper = np.array([180, 50, 255])
         
-        bronze_lower = np.array([8, 80, 80])
-        bronze_upper = np.array([20, 255, 200])
+        copper_lower = np.array([8, 80, 80])
+        copper_upper = np.array([20, 255, 200])
         
         gold_mask = cv2.inRange(hsv, gold_lower, gold_upper)
         silver_mask = cv2.inRange(hsv, silver_lower, silver_upper)
-        bronze_mask = cv2.inRange(hsv, bronze_lower, bronze_upper)
+        copper_mask = cv2.inRange(hsv, copper_lower, copper_upper)
         
         gold_pixels = cv2.countNonZero(gold_mask)
         silver_pixels = cv2.countNonZero(silver_mask)
-        bronze_pixels = cv2.countNonZero(bronze_mask)
+        copper_pixels = cv2.countNonZero(copper_mask)
         
-        max_pixels = max(gold_pixels, silver_pixels, bronze_pixels)
+        max_pixels = max(gold_pixels, silver_pixels, copper_pixels)
         
         if max_pixels < 50:
             return MedalType.NONE.value
@@ -620,7 +620,7 @@ class MLBBExtractor:
         elif max_pixels == silver_pixels:
             return MedalType.SILVER.value
         else:
-            return MedalType.BRONZE.value
+            return MedalType.COPPER.value
 
     # =========================================================================
     # BUSCA DE JOGADOR

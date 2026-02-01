@@ -97,7 +97,7 @@ debug/
    - Processamento adicional para medalhas douradas
 
 8. **medal** (raw)
-   - Região da medalha (Gold/Silver/Bronze)
+   - Região da medalha (Gold/Silver/Copper)
    - Detecção por cor, não OCR
 
 ## Dicas de Uso

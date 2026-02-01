@@ -226,7 +226,7 @@ mlbb-img-data-extractor/
 | `deaths` | Número de mortes |
 | `assists` | Número de assistências |
 | `gold` | Ouro total obtido |
-| `medal` | Tipo de medalha (GOLD, SILVER, BRONZE) |
+| `medal` | Tipo de medalha (GOLD, SILVER, COPPER) |
 | `ratio` | Rating de performance |
 | `position` | Posição no time (1-5) |
 
