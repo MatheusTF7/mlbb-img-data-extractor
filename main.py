@@ -367,7 +367,8 @@ def extract_from_directory(args) -> int:
                         result['source_file'] = image_file.name
                         all_results.append(result)
                         success_count += 1
-                        print(f"  ✓ Jogador '{args.player}' encontrado")
+                        mvp_text = " (MVP)" if result.get('is_mvp', False) else ""
+                        print(f"  ✓ Jogador '{args.player}' encontrado{mvp_text}")
                     else:
                         error_count += 1
                         print(f"  ✗ Jogador '{args.player}' não encontrado")
@@ -436,13 +437,15 @@ def extract_single_player(extractor: MLBBExtractor, args) -> int:
     
     result_dict = game_data.to_dict()
     
-    print(f"\nJogador: {result_dict['nickname']}")
+    mvp_indicator = " 🏆 MVP" if result_dict.get('is_mvp', False) else "-"
+    print(f"\nJogador: {result_dict['nickname']}{mvp_indicator}")
     print(f"  Kills: {result_dict['kills']}")
     print(f"  Deaths: {result_dict['deaths']}")
     print(f"  Assists: {result_dict['assists']}")
     print(f"  Ouro: {result_dict['gold']}")
     print(f"  Rating: {result_dict['ratio']}")
     print(f"  Medalha: {result_dict['medal']}")
+    print(f"  MVP: {mvp_indicator.strip()}")
     print(f"\nInformações da Partida:")
     print(f"  Resultado: {result_dict['result']}")
     print(f"  Placar: {result_dict['my_team_score']} - {result_dict['adversary_team_score']}")
@@ -480,11 +483,13 @@ def extract_all_players(extractor: MLBBExtractor, args) -> int:
     print("=" * 50)
     
     for player_data in results:
-        print(f"\nJogador {player_data['position']}: {player_data['nickname']}")
+        mvp_indicator = " 🏆 MVP" if player_data.get('is_mvp', False) else "-"
+        print(f"\nJogador {player_data['position']}: {player_data['nickname']}{mvp_indicator}")
         print(f"  K/D/A: {player_data['kills']}/{player_data['deaths']}/{player_data['assists']}")
         print(f"  Ouro: {player_data['gold']}")
         print(f"  Rating: {player_data['ratio']}")
         print(f"  Medalha: {player_data['medal']}")
+        print(f"  MVP: {mvp_indicator.strip()}")
     
     # Informações da partida (do primeiro jogador)
     if results:

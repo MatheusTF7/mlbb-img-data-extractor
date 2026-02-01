@@ -47,6 +47,7 @@ class PlayerStats:
     medal: str
     ratio: float
     position: int  # Posição 1-5 no time
+    is_mvp: bool = False  # Se é o jogador MVP
 
 
 @dataclass
@@ -72,6 +73,7 @@ class GameData:
     my_team_score: int
     adversary_team_score: int
     duration: str
+    is_mvp: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Converte para dicionário."""
@@ -87,6 +89,7 @@ class GameData:
             "my_team_score": self.my_team_score,
             "adversary_team_score": self.adversary_team_score,
             "duration": self.duration,
+            "is_mvp": self.is_mvp,
         }
 
 
@@ -509,6 +512,78 @@ class MLBBExtractor:
         medal_region = self._extract_region(image, player_config.medal)
         self._save_debug_image(medal_region, "medal", "raw")
         return self._detect_medal_color(medal_region)
+    
+    def extract_player_mvp(
+        self, 
+        image: np.ndarray, 
+        player_config: PlayerRegionConfig,
+        medal: str
+    ) -> bool:
+        """
+        Detecta se o jogador é MVP.
+        
+        O MVP possui:
+        - Medalha GOLD (obrigatório)
+        - Faixa vermelha com texto "MVP" em dourado na região da medalha
+        
+        Args:
+            image: Imagem completa
+            player_config: Configuração das regiões do jogador
+            medal: Tipo de medalha já detectada
+            
+        Returns:
+            True se é MVP, False caso contrário
+        """
+        # MVP só pode ter medalha GOLD
+        if medal != MedalType.GOLD.value:
+            return False
+        
+        medal_region = self._extract_region(image, player_config.medal)
+        self._save_debug_image(medal_region, "mvp", "raw")
+        
+        # Estratégia 1: OCR com threshold (texto dourado em faixa vermelha)
+        threshold_processed = self.preprocessor.preprocess_threshold(medal_region, 3)
+        self._save_debug_image(threshold_processed, "mvp", "threshold")
+        mvp_text = self.pytesseract.image_to_string(
+            threshold_processed,
+            config="--psm 8 -c tessedit_char_whitelist=MVP"
+        ).strip().upper()
+        
+        if self.config.debug_mode:
+            print(f"  → MVP OCR (threshold): '{mvp_text}'")
+        
+        if "MVP" in mvp_text or "M" in mvp_text and "V" in mvp_text and "P" in mvp_text:
+            if self.config.debug_mode:
+                print(f"  → MVP detectado!")
+            return True
+        
+        # Estratégia 2: Detecção de cor vermelha (faixa MVP)
+        hsv = cv2.cvtColor(medal_region, cv2.COLOR_BGR2HSV)
+        
+        # Range de vermelho (faixa MVP) - ajustado para melhor detecção
+        red_lower1 = np.array([0, 80, 80])
+        red_upper1 = np.array([10, 255, 255])
+        red_lower2 = np.array([170, 80, 80])
+        red_upper2 = np.array([180, 255, 255])
+        
+        red_mask1 = cv2.inRange(hsv, red_lower1, red_upper1)
+        red_mask2 = cv2.inRange(hsv, red_lower2, red_upper2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+        
+        red_pixels = cv2.countNonZero(red_mask)
+        total_pixels = medal_region.shape[0] * medal_region.shape[1]
+        red_ratio = red_pixels / total_pixels if total_pixels > 0 else 0
+        
+        if self.config.debug_mode:
+            print(f"  → Pixels vermelhos: {red_pixels}/{total_pixels} ({red_ratio:.2%})")
+        
+        # Se tem mais de 8% de pixels vermelhos, provavelmente é MVP
+        if red_ratio > 0.08:
+            if self.config.debug_mode:
+                print(f"  → MVP detectado por cor vermelha!")
+            return True
+        
+        return False
 
     def _detect_medal_color(self, region: np.ndarray) -> str:
         """Detecta tipo de medalha baseado na cor dominante."""
@@ -635,6 +710,7 @@ class MLBBExtractor:
         kills, deaths, assists, gold = self.extract_player_stats(image, player_config)
         ratio = self.extract_player_ratio(image, player_config)
         medal = self.extract_player_medal(image, player_config)
+        is_mvp = self.extract_player_mvp(image, player_config, medal)
         
         return PlayerStats(
             nickname=nickname,
@@ -644,7 +720,8 @@ class MLBBExtractor:
             gold=gold,
             medal=medal,
             ratio=ratio,
-            position=player_index + 1
+            position=player_index + 1,
+            is_mvp=is_mvp
         )
 
     def extract_game_data(
@@ -700,7 +777,8 @@ class MLBBExtractor:
             result=match_info.result,
             my_team_score=match_info.my_team_score,
             adversary_team_score=match_info.adversary_team_score,
-            duration=match_info.duration
+            duration=match_info.duration,
+            is_mvp=player_stats.is_mvp
         )
 
     def extract_all_players(
@@ -743,7 +821,8 @@ class MLBBExtractor:
                 "result": match_info.result,
                 "my_team_score": match_info.my_team_score,
                 "adversary_team_score": match_info.adversary_team_score,
-                "duration": match_info.duration
+                "duration": match_info.duration,
+                "is_mvp": player_stats.is_mvp
             }
             results.append(data)
         
