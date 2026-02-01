@@ -235,6 +235,13 @@ def extract_data(args) -> int:
         config = None
         if args.config:
             config = ExtractorConfig(args.config)
+        else:
+            config = ExtractorConfig()
+        
+        # Ativar modo debug se especificado
+        if args.debug:
+            config.debug_mode = True
+            print(f"🔍 Modo debug ativado - Salvando imagens em: {config.debug_dir}/")
         
         # Criar extrator
         extractor = MLBBExtractor(
@@ -310,6 +317,13 @@ def extract_from_directory(args) -> int:
         config = None
         if args.config:
             config = ExtractorConfig(args.config)
+        else:
+            config = ExtractorConfig()
+        
+        # Ativar modo debug se especificado
+        if args.debug:
+            config.debug_mode = True
+            print(f"🔍 Modo debug ativado - Salvando imagens em: {config.debug_dir}/")
         
         # Criar extrator
         extractor = MLBBExtractor(

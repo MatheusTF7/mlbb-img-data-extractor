@@ -134,35 +134,35 @@ DEFAULT_PROFILE = ResolutionProfile(
     players=[
         # Player 1
         PlayerRegionConfig(
-            nickname=RegionConfig(x=21.07, y=22.11, w=10.56, h=4.22),
+            nickname=RegionConfig(x=21.07, y=20.80, w=10.56, h=5.88),
             stats=RegionConfig(x=31.13, y=21.99, w=12.13, h=4.22),
             medal=RegionConfig(x=43.77, y=22.61, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.77, y=29.32, w=3.86, h=4.22),
         ),
         # Player 2
         PlayerRegionConfig(
-            nickname=RegionConfig(x=20.96, y=34.78, w=10.56, h=4.22),
+            nickname=RegionConfig(x=20.96, y=33.59, w=10.56, h=5.88),
             stats=RegionConfig(x=31.19, y=34.53, w=12.13, h=4.22),
             medal=RegionConfig(x=43.82, y=35.16, w=3.86, h=7.58),
             ratio=RegionConfig(x=43.71, y=42.24, w=3.86, h=4.22),
         ),
         # Player 3
         PlayerRegionConfig(
-            nickname=RegionConfig(x=20.96, y=47.33, w=10.56, h=4.22),
+            nickname=RegionConfig(x=20.96, y=46.49, w=10.56, h=5.64),
             stats=RegionConfig(x=31.02, y=47.58, w=12.13, h=4.22),
             medal=RegionConfig(x=43.71, y=48.20, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.71, y=54.91, w=3.86, h=4.22),
         ),
         # Player 4
         PlayerRegionConfig(
-            nickname=RegionConfig(x=21.02, y=60.37, w=10.56, h=4.22),
+            nickname=RegionConfig(x=21.02, y=59.41, w=10.56, h=5.64),
             stats=RegionConfig(x=30.97, y=60.25, w=12.13, h=4.22),
             medal=RegionConfig(x=43.66, y=61.37, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.77, y=67.95, w=3.86, h=4.22),
         ),
         # Player 5
         PlayerRegionConfig(
-            nickname=RegionConfig(x=20.96, y=73.17, w=10.56, h=4.22),
+            nickname=RegionConfig(x=20.96, y=72.21, w=10.56, h=5.76),
             stats=RegionConfig(x=31.02, y=73.04, w=12.13, h=4.22),
             medal=RegionConfig(x=43.71, y=73.54, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.71, y=80.62, w=3.86, h=4.22),
@@ -191,6 +191,8 @@ class ExtractorConfig:
         self.active_profile_name: str = DEFAULT_PROFILE.name
         self.tesseract_cmd: Optional[str] = None
         self.output_dir: str = "output"
+        self.debug_mode: bool = False
+        self.debug_dir: str = "debug"
         
         if config_path:
             self.load_from_file(config_path)
@@ -261,6 +263,8 @@ class ExtractorConfig:
         # Carregar configurações gerais
         self.tesseract_cmd = data.get("tesseract_cmd")
         self.output_dir = data.get("output_dir", "output")
+        self.debug_mode = data.get("debug_mode", False)
+        self.debug_dir = data.get("debug_dir", "debug")
         
         # Carregar perfis
         if "profiles" in data:
@@ -285,6 +289,8 @@ class ExtractorConfig:
         data = {
             "tesseract_cmd": self.tesseract_cmd,
             "output_dir": self.output_dir,
+            "debug_mode": self.debug_mode,
+            "debug_dir": self.debug_dir,
             "active_profile": self.active_profile_name,
             "profiles": [p.to_dict() for p in self.profiles.values()],
         }

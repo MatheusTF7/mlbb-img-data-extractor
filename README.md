@@ -9,6 +9,7 @@ Extrai dados de jogadores de screenshots de final de partida do **Mobile Legends
 - 👥 **Todos os jogadores**: Extrai dados dos 5 jogadores do time aliado
 - 🎯 **Multi-resolução**: Suporte a múltiplos perfis de resolução via configuração
 - 📄 **Exportação JSON**: Exporta dados estruturados em formato JSON
+- 🐛 **Modo Debug**: Salva imagens intermediárias para diagnóstico e ajustes
 
 ## Requisitos
 
@@ -84,6 +85,20 @@ Isto criará `resolutions/default.json` com o perfil padrão.
 ```bash
 python main.py --list-profiles
 ```
+
+#### Modo Debug
+
+Ativa o modo debug para salvar todas as imagens intermediárias na pasta `debug/`:
+
+```bash
+# Com debug ativado
+python main.py -i screenshot.png --all-players --debug
+
+# Processar múltiplas imagens com debug
+python main.py -d ./screenshots --all-players --debug
+```
+
+📖 **Para mais informações sobre o modo debug, consulte:** [DEBUG_MODE.md](DEBUG_MODE.md)
 
 ### Uso como Biblioteca
 
@@ -184,6 +199,8 @@ mlbb-img-data-extractor/
 │   └── default.json           # Perfil padrão 2400x1080
 ├── requirements.txt             # Dependências Python
 ├── setup.py                     # Instalação do pacote
+├── DEBUG_MODE.md                # Documentação do modo debug
+├── test_debug.py                # Script de teste do modo debug
 ├── mlbb_extractor/
 │   ├── __init__.py             # Exports do pacote
 │   ├── config.py               # Sistema de configuração multi-resolução
@@ -194,7 +211,8 @@ mlbb-img-data-extractor/
 │       ├── __init__.py
 │       └── image_processor.py  # Pré-processamento de imagem
 ├── images/                      # Screenshots de teste
-└── output/                      # Arquivos exportados
+├── output/                      # Arquivos exportados
+└── debug/                       # Imagens de debug (quando ativado)
 ```
 
 ## Dados Extraídos
@@ -269,6 +287,25 @@ Se seus screenshots têm proporções diferentes do perfil padrão (2400x1080):
 3. Verifique se a imagem está em boa qualidade
 
 ### Jogador não encontrado
+
+1. Verifique se o nickname está correto (case-sensitive)
+2. **Use o modo debug** (`--debug`) para visualizar as extrações
+3. Verifique se a resolução da imagem é compatível com o perfil usado
+4. Ajuste as coordenadas do perfil se necessário
+
+### Coordenadas incorretas
+
+1. **Ative o modo debug** com `--debug`
+2. Examine os arquivos `*_raw.png` na pasta `debug/`
+3. Ajuste as coordenadas percentuais no arquivo de configuração
+4. Teste novamente até os cortes estarem corretos
+
+### Dados extraídos incorretamente
+
+1. **Use o modo debug** para ver as imagens processadas
+2. Examine os arquivos `*_processed.png` na pasta `debug/`
+3. Se o texto não estiver legível, considere ajustar os parâmetros de pré-processamento
+4. Veja [DEBUG_MODE.md](DEBUG_MODE.md) para mais detalhes
 
 1. O nickname pode ter caracteres especiais que o OCR não reconhece
 2. Use parte do nickname (busca parcial é suportada)

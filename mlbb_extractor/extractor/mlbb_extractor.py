@@ -17,6 +17,8 @@ import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from datetime import datetime
 
 from ..preprocessor.image_processor import ImagePreprocessor
 from ..config import (
@@ -125,11 +127,55 @@ class MLBBExtractor:
         if self.config.tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = self.config.tesseract_cmd
         self.pytesseract = pytesseract
+        
+        # Inicializar controle de debug
+        self._debug_counter = 0
+        self._current_image_name = ""
 
     @property
     def profile(self) -> ResolutionProfile:
         """Retorna o perfil de resolução ativo."""
         return self.config.active_profile
+    
+    def _ensure_debug_dir(self) -> None:
+        """Cria o diretório de debug se não existir."""
+        if self.config.debug_mode:
+            debug_path = Path(self.config.debug_dir)
+            debug_path.mkdir(parents=True, exist_ok=True)
+    
+    def _save_debug_image(self, image: np.ndarray, name: str, description: str = "") -> None:
+        """
+        Salva uma imagem de debug se o modo debug estiver ativo.
+        
+        Args:
+            image: Imagem a ser salva
+            name: Nome identificador da região/operação
+            description: Descrição adicional opcional
+        """
+        if not self.config.debug_mode:
+            return
+        
+        self._ensure_debug_dir()
+        
+        # Criar timestamp e nome de arquivo
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._debug_counter += 1
+        
+        # Nome do arquivo: timestamp_contador_imagename_nome_descrição.png
+        filename_parts = [
+            f"{timestamp}",
+            f"{self._debug_counter:03d}",
+            self._current_image_name,
+            name
+        ]
+        if description:
+            filename_parts.append(description)
+        
+        filename = "_".join(filename_parts) + ".png"
+        filepath = Path(self.config.debug_dir) / filename
+        
+        # Salvar imagem
+        cv2.imwrite(str(filepath), image)
 
     def _extract_region(
         self, 
@@ -159,7 +205,9 @@ class MLBBExtractor:
         
         # Extrair resultado (VICTORY/DEFEAT)
         result_region = self._extract_region(image, profile.result_region)
+        self._save_debug_image(result_region, "result", "raw")
         processed = self.preprocessor.preprocess_threshold(result_region, 4)
+        self._save_debug_image(processed, "result", "processed")
         result_text = self.pytesseract.image_to_string(
             processed, 
             config="--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -168,7 +216,9 @@ class MLBBExtractor:
         
         # Extrair placar do meu time
         my_score_region = self._extract_region(image, profile.my_team_score_region)
+        self._save_debug_image(my_score_region, "my_team_score", "raw")
         processed = self.preprocessor.preprocess_grayscale_scaled(my_score_region, 3)
+        self._save_debug_image(processed, "my_team_score", "processed")
         my_score_text = self.pytesseract.image_to_string(
             processed, config="--psm 7 -c tessedit_char_whitelist=0123456789"
         ).strip()
@@ -176,7 +226,9 @@ class MLBBExtractor:
         
         # Extrair placar adversário
         adv_score_region = self._extract_region(image, profile.adversary_score_region)
+        self._save_debug_image(adv_score_region, "adversary_score", "raw")
         processed = self.preprocessor.preprocess_grayscale_scaled(adv_score_region, 3)
+        self._save_debug_image(processed, "adversary_score", "processed")
         adv_score_text = self.pytesseract.image_to_string(
             processed, config="--psm 7 -c tessedit_char_whitelist=0123456789"
         ).strip()
@@ -184,7 +236,9 @@ class MLBBExtractor:
         
         # Extrair duração
         duration_region = self._extract_region(image, profile.duration_region)
+        self._save_debug_image(duration_region, "duration", "raw")
         processed = self.preprocessor.preprocess_grayscale_scaled(duration_region, 2)
+        self._save_debug_image(processed, "duration", "processed")
         duration_text = self.pytesseract.image_to_string(
             processed, config="--psm 7 -c tessedit_char_whitelist=0123456789:"
         ).strip()
@@ -208,7 +262,9 @@ class MLBBExtractor:
     ) -> str:
         """Extrai o nickname de um jogador."""
         nickname_region = self._extract_region(image, player_config.nickname)
+        self._save_debug_image(nickname_region, "nickname", "raw")
         processed = self.preprocessor.preprocess_grayscale_scaled(nickname_region, 2)
+        self._save_debug_image(processed, "nickname", "processed")
         nickname = self.pytesseract.image_to_string(processed, config="--psm 7").strip()
         return self._clean_nickname(nickname)
 
@@ -226,9 +282,11 @@ class MLBBExtractor:
             Tupla (kills, deaths, assists, gold)
         """
         stats_region = self._extract_region(image, player_config.stats)
+        self._save_debug_image(stats_region, "stats", "raw")
         
         # Estratégia 1: PSM 6 (bloco uniforme) que às vezes preserva espaços
         processed = self.preprocessor.preprocess_grayscale_scaled(stats_region, 3)
+        self._save_debug_image(processed, "stats", "processed_gray")
         text1 = self.pytesseract.image_to_string(
             processed, 
             config="--psm 6 -c tessedit_char_whitelist=0123456789 "
@@ -240,6 +298,7 @@ class MLBBExtractor:
         
         # Estratégia 2: Tentar com pré-processamento diferente (invertido)
         inverted = self.preprocessor.preprocess_inverted(stats_region, 3)
+        self._save_debug_image(inverted, "stats", "processed_inverted")
         text2 = self.pytesseract.image_to_string(
             inverted, 
             config="--psm 6 -c tessedit_char_whitelist=0123456789 "
@@ -388,8 +447,10 @@ class MLBBExtractor:
     ) -> float:
         """Extrai o rating de performance do jogador."""
         ratio_region = self._extract_region(image, player_config.ratio)
+        self._save_debug_image(ratio_region, "ratio", "raw")
         
         processed = self.preprocessor.preprocess_grayscale_scaled(ratio_region, 6)
+        self._save_debug_image(processed, "ratio", "processed")
         tesseract_config = "--psm 8 -c tessedit_char_whitelist=0123456789."
         ratio_text = self.pytesseract.image_to_string(processed, config=tesseract_config).strip()
         
@@ -400,6 +461,7 @@ class MLBBExtractor:
         
         # Fallback: tentar máscara de cor amarela para badges dourados
         yellow_mask = self.preprocessor.preprocess_yellow_color_mask(ratio_region, 5)
+        self._save_debug_image(yellow_mask, "ratio", "yellow_mask")
         ratio_text = self.pytesseract.image_to_string(yellow_mask, config=tesseract_config).strip()
         
         return self._parse_float(ratio_text, 0.0)
@@ -414,6 +476,7 @@ class MLBBExtractor:
         Usa análise de cor ao invés de OCR.
         """
         medal_region = self._extract_region(image, player_config.medal)
+        self._save_debug_image(medal_region, "medal", "raw")
         return self._detect_medal_color(medal_region)
 
     def _detect_medal_color(self, region: np.ndarray) -> str:
@@ -560,6 +623,10 @@ class MLBBExtractor:
         Returns:
             GameData com todos os dados ou None se jogador não encontrado
         """
+        # Configurar nome da imagem para debug
+        self._current_image_name = Path(image_path).stem
+        self._debug_counter = 0
+        
         # Carregar imagem
         image = self.preprocessor.load_image(image_path)
         
@@ -607,6 +674,10 @@ class MLBBExtractor:
         Returns:
             Lista de dicionários com dados de cada jogador
         """
+        # Configurar nome da imagem para debug
+        self._current_image_name = Path(image_path).stem
+        self._debug_counter = 0
+        
         image = self.preprocessor.load_image(image_path)
         
         # Auto-selecionar perfil
