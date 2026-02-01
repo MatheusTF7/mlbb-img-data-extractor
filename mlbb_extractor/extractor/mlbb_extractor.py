@@ -452,13 +452,19 @@ class MLBBExtractor:
         image: np.ndarray, 
         player_config: PlayerRegionConfig
     ) -> float:
-        """Extrai o rating de performance do jogador."""
+        """
+        Extrai o rating de performance do jogador.
+        
+        Rating é exibido em branco com sombra preta em fundo azul.
+        Usa threshold (inversão de cores) como estratégia principal.
+        """
         ratio_region = self._extract_region(image, player_config.ratio)
         self._save_debug_image(ratio_region, "ratio", "raw")
         
         tesseract_config = "--psm 8 -c tessedit_char_whitelist=0123456789."
         
-        # Estratégia 1: threshold com inversão de cores (como no result)
+        # Estratégia 1: threshold com inversão de cores
+        # Ideal para texto branco em fundo azul
         threshold_processed = self.preprocessor.preprocess_threshold(ratio_region, 4)
         self._save_debug_image(threshold_processed, "ratio", "threshold")
         ratio_text = self.pytesseract.image_to_string(threshold_processed, config=tesseract_config).strip()
@@ -473,9 +479,9 @@ class MLBBExtractor:
                 print(f"  → Rating parsed (threshold): {result}")
             return result
         
-        # Estratégia 2: grayscale scaled (método anterior)
+        # Estratégia 2 (fallback): grayscale scaled
         processed = self.preprocessor.preprocess_grayscale_scaled(ratio_region, 6)
-        self._save_debug_image(processed, "ratio", "processed")
+        self._save_debug_image(processed, "ratio", "grayscale")
         ratio_text = self.pytesseract.image_to_string(processed, config=tesseract_config).strip()
         
         if self.config.debug_mode:
@@ -483,23 +489,11 @@ class MLBBExtractor:
         
         result = self._parse_rating(ratio_text, 0.0)
         
-        if result > 0:
-            if self.config.debug_mode:
+        if self.config.debug_mode:
+            if result > 0:
                 print(f"  → Rating parsed (grayscale): {result}")
-            return result
-        
-        # Estratégia 3: máscara de cor amarela para badges dourados
-        yellow_mask = self.preprocessor.preprocess_yellow_color_mask(ratio_region, 5)
-        self._save_debug_image(yellow_mask, "ratio", "yellow_mask")
-        ratio_text = self.pytesseract.image_to_string(yellow_mask, config=tesseract_config).strip()
-        
-        if self.config.debug_mode:
-            print(f"  → Rating OCR (yellow mask): '{ratio_text}'")
-        
-        result = self._parse_rating(ratio_text, 0.0)
-        
-        if self.config.debug_mode:
-            print(f"  → Rating parsed (yellow mask): {result}")
+            else:
+                print(f"  → Rating não detectado")
         
         return result
 
@@ -786,89 +780,114 @@ class MLBBExtractor:
         return default
     
     def _parse_rating(self, text: str, default: float = 0.0) -> float:
-        """"Parse rating com lógica de leitura da direita para esquerda.
+        """"Parse rating com lógica simplificada para OCR de qualidade.
+        
+        Agora que o OCR está melhorado com threshold, usamos interpretação direta.
         
         Regras:
         - Rating mínimo: 3.0
         - Rating máximo: 20.0
-        - Rating sempre tem formato X.Y ou XX.Y (1 casa decimal)
-        
-        Algoritmo:
-        1. Percorre caracteres da direita para esquerda
-        2. Coleta apenas dígitos numéricos (ignora pontos e outros chars)
-        3. Pega no máximo 3 dígitos (para formar XX.Y)
-        4. Insere ponto sempre na posição n-2 (entre penúltimo e último dígito)
-        5. Valida se está no range 3.0-20.0
+        - Rating sempre tem 1 casa decimal (X.Y ou XX.Y)
+        - Último dígito é sempre a casa decimal
         
         Exemplos:
-        - '.7.' -> coleta '7' da direita -> insere ponto -> precisa de 2+ dígitos
-        - '56.17' -> coleta '7','1','6' da direita -> '617' -> inverte -> '716' -> ponto n-2 -> '71.6' (inválido)
-                  -> tenta com 2 dígitos: '7','1' -> '17' -> inverte -> '71' -> '7.1' ✓
-        - '8.77' -> coleta '7','7','8' -> '778' -> inverte -> '877' -> ponto n-2 -> '87.7' (inválido)
-                 -> tenta 2 dígitos: '7','7' -> '77' -> inverte -> '77' -> '7.7' ✓
-        - '115' ou '11.5' -> coleta '5','1','1' -> '511' -> inverte -> '115' -> ponto n-2 -> '11.5' ✓
+        - '7.8' -> 7.8 (direto)
+        - '7.87' -> 7.8 (trunca para 1 casa decimal)
+        - '78' -> 7.8
+        - '115' -> 11.5
+        - '61' -> 6.1
         """
-        debug = self.config.debug_mode if hasattr(self, 'config') else False
-        
         if not text:
             return default
         
-        # Percorrer da direita para esquerda e coletar apenas dígitos
-        collected_digits = []
-        for char in reversed(text):
-            if char.isdigit():
-                collected_digits.append(char)
-                # Limitar a 3 dígitos (formato máximo: XX.Y)
-                if len(collected_digits) >= 3:
-                    break
+        # Extrair apenas dígitos
+        digits = re.sub(r'[^0-9]', '', text)
         
-        if not collected_digits:
+        if not digits:
             return default
         
-        # Inverter para obter ordem correta (coletamos de trás pra frente)
-        digits_str = ''.join(reversed(collected_digits))
-        
-        if debug:
-            print(f"  → Rating parse: texto='{text}' coletado='{digits_str}'")
-        
-        # Tentar formar rating com diferentes quantidades de dígitos
-        # Priorizar 2-3 dígitos, depois 1 dígito
-        attempts = []
-        
-        if len(digits_str) >= 3:
-            # 3 dígitos: XX.Y
-            rating_str = f"{digits_str[0:2]}.{digits_str[2]}"
-            attempts.append(rating_str)
-        
-        if len(digits_str) >= 2:
-            # 2 dígitos: X.Y  
-            rating_str = f"{digits_str[0]}.{digits_str[1]}"
-            attempts.append(rating_str)
-            
-            # Se o resultado X.Y for < 3.0, pode estar faltando um dígito
-            # Tentar 1X.Y (assume que o primeiro 1 foi perdido pelo OCR)
-            if len(digits_str) == 2:
-                rating_str_with_1 = f"1{digits_str[0]}.{digits_str[1]}"
-                attempts.append(rating_str_with_1)
-        
-        if len(digits_str) == 1:
-            # 1 dígito: X.0
-            rating_str = f"{digits_str[0]}.0"
-            attempts.append(rating_str)
-        
-        # Testar cada tentativa e retornar a primeira válida
-        for rating_str in attempts:
+        # Estratégia 1: Se tem ponto no texto, tentar interpretar diretamente
+        if '.' in text:
             try:
-                rating = float(rating_str)
-                if 3.0 <= rating <= 20.0:
-                    if debug:
-                        print(f"  → Rating válido: {rating}")
-                    return rating
-            except ValueError:
-                continue
+                clean_text = re.sub(r'[^0-9.]', '', text)
+                parts = clean_text.split('.')
+                
+                if len(parts) == 2:
+                    integer_part = parts[0]
+                    decimal_part = parts[1]
+                    
+                    # Garantir apenas 1 casa decimal
+                    if decimal_part:
+                        value = float(f"{integer_part}.{decimal_part[0]}")
+                    else:
+                        value = float(f"{integer_part}.0")
+                    
+                    if 3.0 <= value <= 20.0:
+                        return value
+            except (ValueError, IndexError):
+                pass
         
-        if debug:
-            print(f"  → Nenhum rating válido encontrado")
+        # Estratégia 2: Interpretar apenas os dígitos (sem ponto)
+        # Último dígito é decimal, resto é inteiro
+        if len(digits) == 1:
+            # 1 dígito: X.0
+            value = float(f"{digits}.0")
+        elif len(digits) == 2:
+            # 2 dígitos: X.Y
+            value = float(f"{digits[0]}.{digits[1]}")
+        elif len(digits) == 3:
+            # 3 dígitos: pode ser XX.Y ou X.YZ
+            # Tentar XX.Y primeiro (ex: 115 -> 11.5, 757 -> 75.7 inválido)
+            value = float(f"{digits[0:2]}.{digits[2]}")
+            if not (3.0 <= value <= 20.0):
+                # Se não funcionou, tentar X.Y com primeiros 2 dígitos (ex: 877 -> 8.7, 757 -> 7.5)
+                value = float(f"{digits[0]}.{digits[1]}")
+        else:
+            # 4+ dígitos: tentar várias combinações
+            # Ex: '5617' -> tentar dígitos centrais primeiro (mais confiáveis)
+            # Ordem: meio-2, meio-3, últimos-2, últimos-3, primeiros-2, primeiros-3
+            
+            # Tentar dígitos do meio (posições 1 e 2 em '5617' -> '61')
+            if len(digits) >= 3:
+                middle_two = digits[1:3]
+                value = float(f"{middle_two[0]}.{middle_two[1]}")
+                if 3.0 <= value <= 20.0:
+                    return value
+            
+            # Tentar últimos 2: X.Y
+            if len(digits) >= 2:
+                last_two = digits[-2:]
+                value = float(f"{last_two[0]}.{last_two[1]}")
+                if 3.0 <= value <= 20.0:
+                    return value
+            
+            # Tentar últimos 3: XX.Y
+            if len(digits) >= 3:
+                last_three = digits[-3:]
+                value = float(f"{last_three[0:2]}.{last_three[2]}")
+                if 3.0 <= value <= 20.0:
+                    return value
+            
+            # Tentar primeiros 2: X.Y
+            if len(digits) >= 2:
+                first_two = digits[0:2]
+                value = float(f"{first_two[0]}.{first_two[1]}")
+                if 3.0 <= value <= 20.0:
+                    return value
+            
+            # Tentar primeiros 3: XX.Y
+            if len(digits) >= 3:
+                first_three = digits[0:3]
+                value = float(f"{first_three[0:2]}.{first_three[2]}")
+                if 3.0 <= value <= 20.0:
+                    return value
+            
+            # Se nenhuma combinação funcionou, usar última tentativa
+            value = default
+        
+        # Validar range
+        if 3.0 <= value <= 20.0:
+            return value
         
         return default
 
