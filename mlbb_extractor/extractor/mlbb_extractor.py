@@ -456,22 +456,52 @@ class MLBBExtractor:
         ratio_region = self._extract_region(image, player_config.ratio)
         self._save_debug_image(ratio_region, "ratio", "raw")
         
-        processed = self.preprocessor.preprocess_grayscale_scaled(ratio_region, 6)
-        self._save_debug_image(processed, "ratio", "processed")
         tesseract_config = "--psm 8 -c tessedit_char_whitelist=0123456789."
-        ratio_text = self.pytesseract.image_to_string(processed, config=tesseract_config).strip()
         
-        result = self._parse_float(ratio_text, 0.0)
+        # Estratégia 1: threshold com inversão de cores (como no result)
+        threshold_processed = self.preprocessor.preprocess_threshold(ratio_region, 4)
+        self._save_debug_image(threshold_processed, "ratio", "threshold")
+        ratio_text = self.pytesseract.image_to_string(threshold_processed, config=tesseract_config).strip()
+        
+        if self.config.debug_mode:
+            print(f"  → Rating OCR (threshold): '{ratio_text}'")
+        
+        result = self._parse_rating(ratio_text, 0.0)
         
         if result > 0:
+            if self.config.debug_mode:
+                print(f"  → Rating parsed (threshold): {result}")
             return result
         
-        # Fallback: tentar máscara de cor amarela para badges dourados
+        # Estratégia 2: grayscale scaled (método anterior)
+        processed = self.preprocessor.preprocess_grayscale_scaled(ratio_region, 6)
+        self._save_debug_image(processed, "ratio", "processed")
+        ratio_text = self.pytesseract.image_to_string(processed, config=tesseract_config).strip()
+        
+        if self.config.debug_mode:
+            print(f"  → Rating OCR (grayscale): '{ratio_text}'")
+        
+        result = self._parse_rating(ratio_text, 0.0)
+        
+        if result > 0:
+            if self.config.debug_mode:
+                print(f"  → Rating parsed (grayscale): {result}")
+            return result
+        
+        # Estratégia 3: máscara de cor amarela para badges dourados
         yellow_mask = self.preprocessor.preprocess_yellow_color_mask(ratio_region, 5)
         self._save_debug_image(yellow_mask, "ratio", "yellow_mask")
         ratio_text = self.pytesseract.image_to_string(yellow_mask, config=tesseract_config).strip()
         
-        return self._parse_float(ratio_text, 0.0)
+        if self.config.debug_mode:
+            print(f"  → Rating OCR (yellow mask): '{ratio_text}'")
+        
+        result = self._parse_rating(ratio_text, 0.0)
+        
+        if self.config.debug_mode:
+            print(f"  → Rating parsed (yellow mask): {result}")
+        
+        return result
 
     def extract_player_medal(
         self, 
@@ -753,6 +783,93 @@ class MLBBExtractor:
                 return float(match.group(1))
             except ValueError:
                 pass
+        return default
+    
+    def _parse_rating(self, text: str, default: float = 0.0) -> float:
+        """"Parse rating com lógica de leitura da direita para esquerda.
+        
+        Regras:
+        - Rating mínimo: 3.0
+        - Rating máximo: 20.0
+        - Rating sempre tem formato X.Y ou XX.Y (1 casa decimal)
+        
+        Algoritmo:
+        1. Percorre caracteres da direita para esquerda
+        2. Coleta apenas dígitos numéricos (ignora pontos e outros chars)
+        3. Pega no máximo 3 dígitos (para formar XX.Y)
+        4. Insere ponto sempre na posição n-2 (entre penúltimo e último dígito)
+        5. Valida se está no range 3.0-20.0
+        
+        Exemplos:
+        - '.7.' -> coleta '7' da direita -> insere ponto -> precisa de 2+ dígitos
+        - '56.17' -> coleta '7','1','6' da direita -> '617' -> inverte -> '716' -> ponto n-2 -> '71.6' (inválido)
+                  -> tenta com 2 dígitos: '7','1' -> '17' -> inverte -> '71' -> '7.1' ✓
+        - '8.77' -> coleta '7','7','8' -> '778' -> inverte -> '877' -> ponto n-2 -> '87.7' (inválido)
+                 -> tenta 2 dígitos: '7','7' -> '77' -> inverte -> '77' -> '7.7' ✓
+        - '115' ou '11.5' -> coleta '5','1','1' -> '511' -> inverte -> '115' -> ponto n-2 -> '11.5' ✓
+        """
+        debug = self.config.debug_mode if hasattr(self, 'config') else False
+        
+        if not text:
+            return default
+        
+        # Percorrer da direita para esquerda e coletar apenas dígitos
+        collected_digits = []
+        for char in reversed(text):
+            if char.isdigit():
+                collected_digits.append(char)
+                # Limitar a 3 dígitos (formato máximo: XX.Y)
+                if len(collected_digits) >= 3:
+                    break
+        
+        if not collected_digits:
+            return default
+        
+        # Inverter para obter ordem correta (coletamos de trás pra frente)
+        digits_str = ''.join(reversed(collected_digits))
+        
+        if debug:
+            print(f"  → Rating parse: texto='{text}' coletado='{digits_str}'")
+        
+        # Tentar formar rating com diferentes quantidades de dígitos
+        # Priorizar 2-3 dígitos, depois 1 dígito
+        attempts = []
+        
+        if len(digits_str) >= 3:
+            # 3 dígitos: XX.Y
+            rating_str = f"{digits_str[0:2]}.{digits_str[2]}"
+            attempts.append(rating_str)
+        
+        if len(digits_str) >= 2:
+            # 2 dígitos: X.Y  
+            rating_str = f"{digits_str[0]}.{digits_str[1]}"
+            attempts.append(rating_str)
+            
+            # Se o resultado X.Y for < 3.0, pode estar faltando um dígito
+            # Tentar 1X.Y (assume que o primeiro 1 foi perdido pelo OCR)
+            if len(digits_str) == 2:
+                rating_str_with_1 = f"1{digits_str[0]}.{digits_str[1]}"
+                attempts.append(rating_str_with_1)
+        
+        if len(digits_str) == 1:
+            # 1 dígito: X.0
+            rating_str = f"{digits_str[0]}.0"
+            attempts.append(rating_str)
+        
+        # Testar cada tentativa e retornar a primeira válida
+        for rating_str in attempts:
+            try:
+                rating = float(rating_str)
+                if 3.0 <= rating <= 20.0:
+                    if debug:
+                        print(f"  → Rating válido: {rating}")
+                    return rating
+            except ValueError:
+                continue
+        
+        if debug:
+            print(f"  → Nenhum rating válido encontrado")
+        
         return default
 
     def _parse_duration(self, text: str) -> str:
