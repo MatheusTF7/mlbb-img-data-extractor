@@ -45,14 +45,18 @@ class PlayerRegionConfig:
     stats: RegionConfig
     medal: RegionConfig
     ratio: RegionConfig
+    hero: Optional[RegionConfig] = None
 
     def to_dict(self) -> Dict[str, Dict[str, float]]:
-        return {
+        result = {
             "nickname": self.nickname.to_dict(),
             "stats": self.stats.to_dict(),
             "medal": self.medal.to_dict(),
             "ratio": self.ratio.to_dict(),
         }
+        if self.hero:
+            result["hero"] = self.hero.to_dict()
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Dict[str, float]]) -> "PlayerRegionConfig":
@@ -61,6 +65,7 @@ class PlayerRegionConfig:
             stats=RegionConfig.from_dict(data["stats"]),
             medal=RegionConfig.from_dict(data["medal"]),
             ratio=RegionConfig.from_dict(data["ratio"]),
+            hero=RegionConfig.from_dict(data["hero"]) if "hero" in data else None,
         )
 
 
@@ -138,6 +143,7 @@ DEFAULT_PROFILE = ResolutionProfile(
             stats=RegionConfig(x=31.13, y=21.99, w=12.13, h=4.22),
             medal=RegionConfig(x=43.77, y=22.61, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.77, y=29.32, w=3.86, h=4.22),
+            hero=RegionConfig(x=14.195397835773393, y=21.82711456859972, w=4.894818586887333, h=10.726364922206507),
         ),
         # Player 2
         PlayerRegionConfig(
@@ -145,6 +151,7 @@ DEFAULT_PROFILE = ResolutionProfile(
             stats=RegionConfig(x=31.19, y=34.53, w=12.13, h=4.22),
             medal=RegionConfig(x=43.82, y=35.16, w=3.86, h=7.58),
             ratio=RegionConfig(x=43.71, y=42.24, w=3.86, h=4.22),
+            hero=RegionConfig(x=14.212705283259071, y=34.49711456859972, w=4.831164863144494, h=10.726364922206507),
         ),
         # Player 3
         PlayerRegionConfig(
@@ -152,6 +159,7 @@ DEFAULT_PROFILE = ResolutionProfile(
             stats=RegionConfig(x=31.02, y=47.58, w=12.13, h=4.22),
             medal=RegionConfig(x=43.71, y=48.20, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.71, y=54.91, w=3.86, h=4.22),
+            hero=RegionConfig(x=14.34001273074475, y=47.33, w=4.640203691915978, h=10.584922206506366),
         ),
         # Player 4
         PlayerRegionConfig(
@@ -159,6 +167,7 @@ DEFAULT_PROFILE = ResolutionProfile(
             stats=RegionConfig(x=30.97, y=60.25, w=12.13, h=4.22),
             medal=RegionConfig(x=43.66, y=61.37, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.77, y=67.95, w=3.86, h=4.22),
+            hero=RegionConfig(x=14.33635900700191, y=59.94567185289957, w=4.703857415658817, h=10.867807637906647),
         ),
         # Player 5
         PlayerRegionConfig(
@@ -166,6 +175,7 @@ DEFAULT_PROFILE = ResolutionProfile(
             stats=RegionConfig(x=31.02, y=73.04, w=12.13, h=4.22),
             medal=RegionConfig(x=43.71, y=73.54, w=3.86, h=7.45),
             ratio=RegionConfig(x=43.71, y=80.62, w=3.86, h=4.22),
+            hero=RegionConfig(x=14.34001273074475, y=72.74567185289958, w=4.767511139401655, h=10.867807637906647),
         ),
     ]
 )

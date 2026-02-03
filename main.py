@@ -485,7 +485,9 @@ def extract_all_players(extractor: MLBBExtractor, args) -> int:
     
     for player_data in results['my_team']:
         mvp_indicator = " 🏆 MVP" if player_data.get('is_mvp', False) else "-"
+        hero_name = player_data.get('hero', 'NO_MATCH')
         print(f"\nJogador {player_data['position']}: {player_data['nickname']}{mvp_indicator}")
+        print(f"  Herói: {hero_name}")
         print(f"  K/D/A: {player_data['kills']}/{player_data['deaths']}/{player_data['assists']}")
         print(f"  Ouro: {player_data['gold']}")
         print(f"  Rating: {player_data['ratio']}")

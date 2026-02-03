@@ -47,6 +47,7 @@ class PlayerStats:
     medal: str
     ratio: float
     position: int  # Posição 1-5 no time
+    hero: str = ""  # Nome do herói identificado
     is_mvp: bool = False  # Se é o jogador MVP
 
 
@@ -73,6 +74,7 @@ class GameData:
     my_team_score: int
     adversary_team_score: int
     duration: str
+    hero: str = ""
     is_mvp: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -89,6 +91,7 @@ class GameData:
             "my_team_score": self.my_team_score,
             "adversary_team_score": self.adversary_team_score,
             "duration": self.duration,
+            "hero": self.hero,
             "is_mvp": self.is_mvp,
         }
 
@@ -134,6 +137,10 @@ class MLBBExtractor:
         
         # Carregar mapeamentos de nicknames
         self.nickname_mappings = self._load_nickname_mappings()
+        
+        # Carregar mapeamento de heróis
+        self.heroes_map = self._load_heroes_map()
+        self.hero_images = self._load_hero_images()
         
         # Inicializar controle de debug
         self._debug_counter = 0
@@ -711,6 +718,7 @@ class MLBBExtractor:
         ratio = self.extract_player_ratio(image, player_config)
         medal = self.extract_player_medal(image, player_config)
         is_mvp = self.extract_player_mvp(image, player_config, medal)
+        hero = self.extract_player_hero(image, player_config)
         
         return PlayerStats(
             nickname=nickname,
@@ -721,6 +729,7 @@ class MLBBExtractor:
             medal=medal,
             ratio=ratio,
             position=player_index + 1,
+            hero=hero,
             is_mvp=is_mvp
         )
 
@@ -778,6 +787,7 @@ class MLBBExtractor:
             my_team_score=match_info.my_team_score,
             adversary_team_score=match_info.adversary_team_score,
             duration=match_info.duration,
+            hero=player_stats.hero,
             is_mvp=player_stats.is_mvp
         )
 
@@ -826,6 +836,7 @@ class MLBBExtractor:
                 "medal": player_stats.medal,
                 "ratio": player_stats.ratio,
                 "position": player_stats.position,
+                "hero": player_stats.hero,
                 "is_mvp": player_stats.is_mvp
             }
             my_team.append(player_data)
@@ -1006,6 +1017,214 @@ class MLBBExtractor:
         except Exception as e:
             print(f"Aviso: Erro ao carregar mapeamentos de nicknames: {e}")
             return {}
+    
+    def _load_heroes_map(self) -> Dict[str, str]:
+        """Carrega o mapeamento de heróis do arquivo heroes_map.json."""
+        heroes_file = Path("heroes_map.json")
+        if not heroes_file.exists():
+            return {}
+        
+        try:
+            with open(heroes_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get("mappings", {})
+        except Exception as e:
+            print(f"Aviso: Erro ao carregar mapeamento de heróis: {e}")
+            return {}
+    
+    def _load_hero_images(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Carrega todas as imagens de heróis e pré-computa descriptors ORB para matching.
+        
+        Returns:
+            Dicionário com nome do herói -> {image, keypoints, descriptors}
+        """
+        hero_data = {}
+        
+        # Criar detector ORB (Oriented FAST and Rotated BRIEF)
+        # ORB é rápido e robusto para feature matching
+        orb = cv2.ORB_create(nfeatures=500)
+        
+        for hero_name, hero_path in self.heroes_map.items():
+            # Remover a barra inicial se existir
+            if hero_path.startswith('/'):
+                hero_path = hero_path[1:]
+            
+            full_path = Path(hero_path)
+            if full_path.exists():
+                try:
+                    img = cv2.imread(str(full_path), cv2.IMREAD_COLOR)
+                    if img is not None:
+                        # Converter para grayscale para ORB
+                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        
+                        # Detectar keypoints e computar descriptors
+                        keypoints, descriptors = orb.detectAndCompute(gray, None)
+                        
+                        if descriptors is not None and len(keypoints) > 0:
+                            hero_data[hero_name] = {
+                                'image': img,
+                                'gray': gray,
+                                'keypoints': keypoints,
+                                'descriptors': descriptors
+                            }
+                        else:
+                            if self.config.debug_mode:
+                                print(f"Aviso: Sem features detectadas para herói '{hero_name}'")
+                    else:
+                        if self.config.debug_mode:
+                            print(f"Aviso: Não foi possível carregar imagem do herói '{hero_name}' em {full_path}")
+                except Exception as e:
+                    if self.config.debug_mode:
+                        print(f"Aviso: Erro ao carregar imagem do herói '{hero_name}': {e}")
+            else:
+                if self.config.debug_mode:
+                    print(f"Aviso: Arquivo de herói não encontrado: {full_path}")
+        
+        if self.config.debug_mode:
+            print(f"Carregadas {len(hero_data)} imagens de heróis com features ORB")
+        
+        return hero_data
+    
+    def extract_player_hero(
+        self, 
+        image: np.ndarray, 
+        player_config: PlayerRegionConfig
+    ) -> str:
+        """
+        Identifica o herói do jogador através de Feature Matching (ORB) e Histograma de Cores.
+        
+        Utiliza uma abordagem híbrida:
+        1. ORB Feature Matching - para detectar características visuais distintas
+        2. Histograma de Cores - fallback robusto para imagens pequenas
+        
+        Args:
+            image: Imagem completa do screenshot
+            player_config: Configuração das regiões do jogador
+            
+        Returns:
+            Nome do herói identificado ou "NO_MATCH" se não identificado
+        """
+        if self.config.debug_mode:
+            print(f"  → Iniciando extração de herói...")
+        
+        # Se não há configuração de hero, retornar NO_MATCH
+        if not player_config.hero:
+            if self.config.debug_mode:
+                print(f"  → Sem configuração de hero no perfil")
+            return "NO_MATCH"
+        
+        # Se não há imagens de heróis carregadas, retornar NO_MATCH
+        if not self.hero_images:
+            if self.config.debug_mode:
+                print(f"  → Sem imagens de heróis carregadas")
+            return "NO_MATCH"
+        
+        # Extrair região do herói
+        hero_region = self._extract_region(image, player_config.hero)
+        self._save_debug_image(hero_region, "hero", "raw")
+        
+        # Converter para grayscale
+        hero_gray = cv2.cvtColor(hero_region, cv2.COLOR_BGR2GRAY)
+        
+        # ======================================================================
+        # MÉTODO 1: ORB Feature Matching
+        # ======================================================================
+        orb = cv2.ORB_create(nfeatures=1000, scaleFactor=1.2, nlevels=8)
+        keypoints_region, descriptors_region = orb.detectAndCompute(hero_gray, None)
+        
+        orb_scores = {}
+        
+        if descriptors_region is not None and len(keypoints_region) >= 3:
+            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+            
+            if self.config.debug_mode:
+                print(f"  → Features na região: {len(keypoints_region)}")
+            
+            for hero_name, hero_data in self.hero_images.items():
+                descriptors_hero = hero_data['descriptors']
+                
+                try:
+                    matches = bf.knnMatch(descriptors_region, descriptors_hero, k=2)
+                    
+                    good_matches = []
+                    for match_pair in matches:
+                        if len(match_pair) == 2:
+                            m, n = match_pair
+                            if m.distance < 0.75 * n.distance:
+                                good_matches.append(m)
+                    
+                    if len(matches) > 0:
+                        match_ratio = len(good_matches) / len(matches)
+                        quantity_bonus = min(len(good_matches) / 15.0, 1.0)
+                        orb_scores[hero_name] = (match_ratio * 0.5) + (quantity_bonus * 0.5)
+                    else:
+                        orb_scores[hero_name] = 0
+                        
+                except Exception:
+                    orb_scores[hero_name] = 0
+        
+        # ======================================================================
+        # MÉTODO 2: Histograma de Cores (mais robusto para imagens pequenas)
+        # ======================================================================
+        hist_scores = {}
+        
+        # Calcular histograma da região (HSV é mais robusto para variações de luz)
+        hero_hsv = cv2.cvtColor(hero_region, cv2.COLOR_BGR2HSV)
+        hist_region = cv2.calcHist([hero_hsv], [0, 1], None, [50, 60], [0, 180, 0, 256])
+        cv2.normalize(hist_region, hist_region, 0, 1, cv2.NORM_MINMAX)
+        
+        for hero_name, hero_data in self.hero_images.items():
+            hero_img = hero_data['image']
+            
+            # Redimensionar para mesmo tamanho para comparação justa
+            hero_resized = cv2.resize(hero_img, (hero_region.shape[1], hero_region.shape[0]))
+            hero_hsv_template = cv2.cvtColor(hero_resized, cv2.COLOR_BGR2HSV)
+            
+            hist_template = cv2.calcHist([hero_hsv_template], [0, 1], None, [50, 60], [0, 180, 0, 256])
+            cv2.normalize(hist_template, hist_template, 0, 1, cv2.NORM_MINMAX)
+            
+            # Comparar histogramas usando correlação
+            score = cv2.compareHist(hist_region, hist_template, cv2.HISTCMP_CORREL)
+            hist_scores[hero_name] = max(0, score)  # Normalizar para >= 0
+        
+        # ======================================================================
+        # COMBINAR SCORES (ORB + Histograma)
+        # ======================================================================
+        combined_scores = {}
+        
+        for hero_name in self.hero_images.keys():
+            orb_score = orb_scores.get(hero_name, 0)
+            hist_score = hist_scores.get(hero_name, 0)
+            
+            # Peso dinâmico: se ORB encontrou bons matches, dar mais peso a ele
+            if orb_score > 0.1:
+                combined = (orb_score * 0.6) + (hist_score * 0.4)
+            else:
+                # Se ORB falhou, usar principalmente histograma
+                combined = (orb_score * 0.2) + (hist_score * 0.8)
+            
+            combined_scores[hero_name] = combined
+            
+            if self.config.debug_mode:
+                print(f"  → Hero '{hero_name}': ORB={orb_score:.3f}, Hist={hist_score:.3f}, Combined={combined:.3f}")
+        
+        # Encontrar melhor match
+        best_hero = max(combined_scores.keys(), key=lambda x: combined_scores[x])
+        best_score = combined_scores[best_hero]
+        
+        # Threshold de confiança (0.2 = 20%)
+        # Ajustado para ser menos restritivo dado o tamanho pequeno das regiões
+        confidence_threshold = 0.2
+        
+        if best_score >= confidence_threshold:
+            if self.config.debug_mode:
+                print(f"  → Herói identificado: '{best_hero}' (confiança: {best_score:.3f})")
+            return best_hero
+        else:
+            if self.config.debug_mode:
+                print(f"  → Nenhum herói identificado com confiança suficiente (melhor: {best_hero} = {best_score:.3f})")
+            return "NO_MATCH"
     
     def _apply_nickname_mapping(self, nickname: str) -> str:
         """Aplica mapeamento de nickname se existir."""
