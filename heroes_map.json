@@ -1,0 +1,20 @@
+{
+  "description": "Mapeamento de Heóis para sua respectiva imagem em /image_heroes",
+  "mappings": {
+    "Belerick": "/image_heroes/belerick.png",
+    "Clint": "/image_heroes/clint.png",
+    "Cyclops": "/image_heroes/cyclops.png",
+    "Floryn": "/image_heroes/floryn.png",
+    "Gloo": "/image_heroes/gloo.png",
+    "Hanabi": "/image_heroes/hanabi.png",
+    "Harley": "/image_heroes/harley.png",
+    "Hylos": "/image_heroes/hylos.png",
+    "Kaja": "/image_heroes/kaja.png",
+    "Lolita": "/image_heroes/lolita.png",
+    "Masha": "/image_heroes/masha.png",
+    "Minotauro": "/image_heroes/minotauro.png",
+    "Nana": "/image_heroes/nana.png",
+    "Ruby": "/image_heroes/ruby.png",
+    "Thamuz": "/image_heroes/thamuz.png"
+  }
+}
