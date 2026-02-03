@@ -1,10 +1,10 @@
 # Imagem Específica
 
 ## Buscar jogador específico
-python main.py -i ./images/screenshot.png -p "MTF7" --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
+python main.py -i ./images/win.jpeg -p "MTF7" --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 ## Extrair todos os jogadores
-python main.py -i ./images/screenshot.png --all-players --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
+python main.py -i ./images/win.jpeg --all-players --tesseract-cmd "C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 ## Gerar arquivo de configuração
 python main.py --generate-config
@@ -29,10 +29,10 @@ python main.py -d images -p "MTF7" -n "mtf7_matches"
 # Modo de debug
 
 ## Modo básico
-python main.py -i screenshot.png --all-players --debug
+python main.py -i win.jpeg --all-players --debug
 
 ## Processamento em lote
-python main.py -d ./screenshots -p "MTF7" --debug
+python main.py -d ./images -p "MTF7" --debug
 
 ## Script de teste
 python test_debug.py
